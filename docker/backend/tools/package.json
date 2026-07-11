@@ -1,0 +1,14 @@
+{
+  "name": "ft_transcendence_backend",
+  "version": "1.0.0",
+  "description": "Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "mariadb": "^3.3.0",
+    "ws": "^8.18.0"
+  }
+}

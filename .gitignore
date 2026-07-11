@@ -1,0 +1,49 @@
+# ==========================================
+# 1. Dépendances Node.js (Backend & Frontend)
+# ==========================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ==========================================
+# 2. Fichiers de build Frontend (Next.js / Vite)
+# ==========================================
+.next/
+out/
+dist/
+build/
+
+# ==========================================
+# 3. Sécurité et Variables d'Environnement
+# ==========================================
+# NE JAMAIS PUSHER LES .env (qui contiennent tes mots de passe DB_PASSWORD, etc.)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==========================================
+# 4. Données Docker & Base de données
+# ==========================================
+# Si tu crées des dossiers locaux pour stocker tes volumes MariaDB,
+# il ne faut pas que Git essaie de versionner les fichiers binaires de la DB.
+data/
+mariadb_data/
+db_data/
+
+# ==========================================
+# 5. Fichiers d'Éditeurs et d'OS
+# ==========================================
+# Fichiers temporaires (Vim, Neovim, Emacs)
+*.swp
+*~
+*.swo
+
+# Configurations locales d'éditeurs (VS Code, etc.)
+.vscode/
+.idea/
+
+# Fichiers système (Windows / macOS)
+.DS_Store
+Thumbs.db
