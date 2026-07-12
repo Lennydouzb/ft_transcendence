@@ -11,9 +11,9 @@ mariadb -e "GRANT ALL PRIVILEGES ON ft_transcendence.* TO '${DB_USER}'@'%' WITH 
 mariadb -e "FLUSH PRIVILEGES;"
 mariadb -u $DB_USER -p ft_transcendence -e "
 CREATE TABLE tr_User(
-   idUser INT,
+   idUser INT AUTO_INCREMENT,
    email VARCHAR(50),
-   password VARCHAR(50),
+   password CHAR(60),
    name VARCHAR(50),
    profile_picture VARCHAR(50),
    PRIMARY KEY(idUser),
@@ -21,15 +21,14 @@ CREATE TABLE tr_User(
 );
 
 CREATE TABLE tr_Game(
-   idGame INT,
+   idGame INT AUTO_INCREMENT,
    date_ DATE,
    name VARCHAR(50),
-   settings VARCHAR(200),
-   PRIMARY KEY(idGame)
+   PRIMARY KEY(idGame),
 );
 
 CREATE TABLE tr_Project(
-   idProject INT,
+   idProject INT AUTO_INCREMENT,
    lien_github VARCHAR(150) NOT NULL,
    PRIMARY KEY(idProject)
 );
@@ -44,7 +43,7 @@ CREATE TABLE tr_Participate(
    FOREIGN KEY(idGame) REFERENCES tr_Game(idGame)
 );
 
-CREATE TABLE tr_questions(
+CREATE TABLE tr_Question(
    idGame INT,
    idProject INT,
    PRIMARY KEY(idGame, idProject),

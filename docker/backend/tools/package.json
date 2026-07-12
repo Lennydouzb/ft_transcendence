@@ -9,6 +9,9 @@
   "dependencies": {
     "express": "^4.21.0",
     "mariadb": "^3.3.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+	"jsonwebtoken": "^9.0.3",
+	"bcrypt": "^3.0.3",
+	"multer": "^2.2.0"
   }
 }
