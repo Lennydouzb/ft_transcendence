@@ -13,8 +13,8 @@ volumes:
       device: /home/ldesboui/commoncore/ft_transcendence/srcs/backend
       o: bind
       type: none
-  nginx:
-    name: nginx
+  frontend:
+    name: frontend
     driver: local
     driver_opts:
       device: /home/ldesboui/commoncore/ft_transcendence/srcs/frontend
@@ -32,10 +32,24 @@ services:
       - "443:443"
     networks: 
       - ft_transcendence
-    volumes:
-      - nginx:/var/www/html
     restart: on-failure
     env_file: .env
+    
+  frontend:
+    container_name: frontend
+    build: 
+      context: ..
+      dockerfile: ./docker/frontend/Dockerfile
+    depends_on:
+      - mariadb
+    ports:
+      - "3000:3000"
+    networks:
+      - ft_transcendence
+    restart: on-failure
+    volumes:
+      - frontend:/app
+      - /app/node_modules
 
   mariadb:
     container_name: mariadb
@@ -52,7 +66,9 @@ services:
     env_file: .env 
   backend:
     container_name: backend
-    build: ./backend
+    build: 
+      context: ..
+      dockerfile: ./docker/backend/Dockerfile
     depends_on:
       - mariadb
     ports:
@@ -61,6 +77,7 @@ services:
       - ft_transcendence
     volumes:
       - backend:/app
+      - /app/node_modules
     restart: on-failure
     env_file: .env
 
