@@ -1,4 +1,3 @@
-//@TODO genere par ia :(
 const express = require('express');
 const mariadb = require('mariadb');
 const websocket = require('ws');
