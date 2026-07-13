@@ -4,17 +4,19 @@ const websocket = require('ws');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 
 const upload = multer({ dest: 'uploads/' });
 const salt = 10;
 const app = express();
 const SECRET = "SKIBIDIDOPOPDOPDOP"; //@TODO a voir comment recup le env
 //this is to read json
-app.use(express.json);
+app.use(express.json());
 const PORT = 8080;
 
 const pool = mariadb.createPool({
-	host: 'mariadb'
+	host: 'mariadb',
 	user: process.env.DB_USER || 'ldesboui',
 	password: process.env.DB_PASSWORD || '1234',
 	connectionLimit: 5
@@ -63,10 +65,10 @@ app.get('/api/test-db', async (req, res) => {
 	}
 });
 
-app.get('/api/users', async (req, res)) => {
+app.get('/api/users', async (req, res) => {
 	let conn;
 	try {
-		conn = pool.getConnection();
+		conn = await pool.getConnection();
 		const rows = await conn.query("SELECT idUser, name from tr_User");
 		res.json(rows);	
 	} catch (err) {
@@ -81,10 +83,10 @@ app.get('/api/users', async (req, res)) => {
 	}
 }
 
-app.get('/api/games', async (req, res)) => {
+app.get('/api/games', async (req, res) => {
 	let conn;
 	try {
-		conn = pool.getConnection();
+		conn = await pool.getConnection();
 		const rows = await conn.query("SELECT * from tr_Games");
 		res.json(rows);	
 	} catch (err) {
@@ -99,10 +101,10 @@ app.get('/api/games', async (req, res)) => {
 	}
 }
 
-app.get('/api/projects', async (req, res)) => {
+app.get('/api/projects', async (req, res) => {
 	let conn;
 	try {
-		conn = pool.getConnection();
+		conn = await pool.getConnection();
 		const rows = await conn.query("SELECT * from tr_Projects");
 		res.json(rows);	
 	} catch (err) {
@@ -166,7 +168,7 @@ app.post('/api/userGames', async (req, res) => {
 });
 
 app.post('/api/gameProjects', async (req, res) => {
-	const { idUser } = req.body;
+	const { idGame} = req.body;
 
 	if (!idGame) {
 		return res.status(400).json({ success: false, message: "idGame is required" });
@@ -174,7 +176,7 @@ app.post('/api/gameProjects', async (req, res) => {
 	let conn;
 	try {
 		conn = await pool.getConnection();
-		const sqlQuery = "SELECT * FROM tr_Question WHERE idUser = ?";
+		const sqlQuery = "SELECT * FROM tr_Question WHERE idGame = ?";
 		const rows = await conn.query(sqlQuery, [idGame]);
 		res.json(rows);    
 	} catch (err) {
@@ -216,9 +218,9 @@ app.post('/api/createUser', async (req, res) => {
 		const sqlQuery = "insert into tr_User values (?, ?, ?)";
 		const rows = await conn.query(sqlQuery, [mail, hashedPass, name]);
 		const token = jwt.sign(
-			{ idUser = rows.insertId},
+			{ idUser: rows.insertId},
 			SECRET,
-			{expiresIn : "24h"}
+			{expiresIn: "24h"}
 		);
 		res.json({success: true, token: token});    
 	} catch (err) {
@@ -256,9 +258,9 @@ app.post('/api/login', async (req, res) => {
 			return res.status(401).json({error: "Incorrect mail or password"});
 		}	
 		const token = jwt.sign(
-			{ idUser = idUser},
+			{ idUser: rows[0].idUser},
 			SECRET,
-			{expiresIn : "24h"}
+			{expiresIn: "24h"}
 		);
 		res.json({success: true, token: token});    
 	} catch (err) {
@@ -272,6 +274,12 @@ app.post('/api/login', async (req, res) => {
 		if (conn) conn.release();
 	}
 });
+
+/*
+ * ------------------------------------------------------
+ * -                     Modfying                       -
+ * ------------------------------------------------------
+*/
 
 app.put('/api/updateUserName', async (req, res) => {
 	const { name , token} = req.body;
@@ -287,9 +295,9 @@ app.put('/api/updateUserName', async (req, res) => {
 		let conn;
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "update set name = ? where idUser = ?";
+			const sqlQuery = "update tr_User set name = ? where idUser = ?";
 			const rows = await conn.query(sqlQuery, [name, jwtDecoded.idUser]);
-			res.status(500).json({success: true});
+			res.status(200).json({success: true});
 		} catch (err) {
 			console.error("Database error:", err);
 			res.status(500).json({ 
@@ -306,11 +314,6 @@ app.put('/api/updateUserName', async (req, res) => {
 	}
 });
 
-/*
- * ------------------------------------------------------
- * -                     Modfying                       -
- * ------------------------------------------------------
-*/
 
 app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 	const {token} = req.body;
@@ -329,20 +332,20 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 		let conn;
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "select profile_picture where idUser = ?";
+			const sqlQuery = "select profile_picture from tr_User where idUser = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
 			if (rows.length != 0)
 			{
-				const path = path.join(__dirname, "uploads", rows.profile_picture);
+				const imgPath = path.join(__dirname, "uploads", rows[0].profile_picture);
 				try{
-					fs.unlink(path);
+					fs.unlinkSync(imgPath);
 				}catch (err)
 				{
 					return res.status(401).json({success: false, error: "Seems like there was a problem"});
 				}
 			}
 			const updateQuery = "UPDATE tr_User SET profile_picture = ? WHERE idUser = ?";
-			await conn.query(updateQuery, [req.file, jwtDecoded.idUser);
+			await conn.query(updateQuery, [req.file.filename, jwtDecoded.idUser]);
 			res.json({success: true, message: "Profile pic was changed"});
 		} catch (err) {
 			console.error("Database error:", err);
@@ -378,14 +381,14 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 		let conn;
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "select profile_picture where idUser = ?";
+			const sqlQuery = "select profile_picture from tr_User where idUser = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-			if (rows.length != 0)
+			if (rows.length != 0 && rows[0].profile_picture)
 			{
-				res.json({success: true, message: "Profile pic is unset"});
+				return res.json({success: true, message: "Profile pic is unset"});
 			}
 			const updateQuery = "UPDATE tr_User SET profile_picture = NULL WHERE idUser = ?";
-			await conn.query(updateQuery, [req.file, jwtDecoded.idUser);
+			await conn.query(updateQuery, [jwtDecoded.idUser]);
 			res.json({success: true, message: "Profile pic was removed"});
 		} catch (err) {
 			console.error("Database error:", err);
