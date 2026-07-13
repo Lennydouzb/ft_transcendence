@@ -81,7 +81,7 @@ app.get('/api/users', async (req, res) => {
 	} finally {
 		if (conn) conn.release();
 	}
-}
+});
 
 app.get('/api/games', async (req, res) => {
 	let conn;
@@ -99,7 +99,8 @@ app.get('/api/games', async (req, res) => {
 	} finally {
 		if (conn) conn.release();
 	}
-}
+});
+
 
 app.get('/api/projects', async (req, res) => {
 	let conn;
@@ -117,7 +118,8 @@ app.get('/api/projects', async (req, res) => {
 	} finally {
 		if (conn) conn.release();
 	}
-}
+});
+
 
 app.post('/api/gameParticipants', async (req, res) => {
 	const { idGame } = req.body;
@@ -275,6 +277,132 @@ app.post('/api/login', async (req, res) => {
 	}
 });
 
+app.post('/api/createProject', async (req, res) => {
+	const {link, name, token} = req.body;
+	if (!link) {
+		return res.status(400).json({ success: false, message: "github link is required" });
+	}
+	if (!name) {
+		return res.status(400).json({ success: false, message: "name is required" });
+	}
+	if (!token) {
+		return res.status(400).json({ success: false, message: "token is  required" });
+	}
+	let conn;
+	try{
+		const jwtDecoded = jwt.verify(token, SECRET);
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "insert into tr_Project values(?, ?)";
+			const rows = await conn.query(sqlQuery, [link, name]);
+			res.status(200).json({success: true});
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	}catch(err)
+	{
+		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+	}
+});
+
+
+app.post('/api/createQuestions', async (req, res) => {
+	const {projects, idGame, token} = req.body;
+	if (!projects) {
+		return res.status(400).json({ success: false, message: "projects are required" });
+	}
+	if (!Array.isArray(projects) || projects.length === 0)
+	{
+		return res.status(400).json({ success: false, message: "projects are required" });
+	}
+	if (!idGame) {
+		return res.status(400).json({ success: false, message: "idGame is required" });
+	}
+	if (!token) {
+		return res.status(400).json({ success: false, message: "token is  required" });
+	}
+	let conn;
+	try{
+		const jwtDecoded = jwt.verify(token, SECRET);
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "insert into tr_Question values(?, ?)";
+			//for each attribute push an object into a tab (it associate idGame to each project id);
+			const values = projects.map(idProject => [
+				idGame,
+				idProject
+			]);
+			// do all
+			const rows = await conn.batch(sqlQuery, values);
+			res.status(200).json({success: true});
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	}catch(err)
+	{
+		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+	}
+});
+
+app.post('/api/createParticipants', async (req, res) => {
+	const {users, idGame, token} = req.body;
+	if (!users) {
+		return res.status(400).json({ success: false, message: "users are required" });
+	}
+	if (!Array.isArray(users) || users.length === 0)
+	{
+		return res.status(400).json({ success: false, message: "users are required" });
+	}
+	if (!idGame) {
+		return res.status(400).json({ success: false, message: "idGame is required" });
+	}
+	if (!token) {
+		return res.status(400).json({ success: false, message: "token is  required" });
+	}
+	let conn;
+	try{
+		const jwtDecoded = jwt.verify(token, SECRET);
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "insert into tr_Participate values(?, ?)";
+			//for each attribute push an object into a tab (it associate idGame to each project id);
+			const values = users.map(idUser => [
+				idUser,
+				idGame
+			]);
+			// do all
+			const rows = await conn.batch(sqlQuery, values);
+			res.status(200).json({success: true});
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	}catch(err)
+	{
+		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+	}
+});
+
 /*
  * ------------------------------------------------------
  * -                     Modfying                       -
@@ -383,7 +511,7 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 			conn = await pool.getConnection();
 			const sqlQuery = "select profile_picture from tr_User where idUser = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-			if (rows.length != 0 && rows[0].profile_picture)
+			if (rows.length == 0 || !rows[0].profile_picture)
 			{
 				return res.json({success: true, message: "Profile pic is unset"});
 			}

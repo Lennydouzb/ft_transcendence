@@ -30,14 +30,13 @@ CREATE TABLE tr_Game(
 CREATE TABLE tr_Project(
    idProject INT AUTO_INCREMENT,
    lien_github VARCHAR(150) NOT NULL,
+   name VARCHAR(50),
    PRIMARY KEY(idProject)
 );
 
 CREATE TABLE tr_Participate(
    idUser INT,
    idGame INT,
-   score VARCHAR(50),
-   spectator LOGICAL,
    PRIMARY KEY(idUser, idGame),
    FOREIGN KEY(idUser) REFERENCES tr_User(idUser),
    FOREIGN KEY(idGame) REFERENCES tr_Game(idGame)
