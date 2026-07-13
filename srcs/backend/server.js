@@ -360,6 +360,49 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 	}
 });
 
+/*
+ * ------------------------------------------------------
+ * -                     Deleting                       -
+ * ------------------------------------------------------
+*/
+app.delete('/api/deleteUserImage/', async (req, res) => {
+	const {token} = req.body;
+    let conn;
+
+	if (!token)
+	{
+		return res.status(400).json({ success: false, message: "token is required" });
+	}
+	try{
+		const jwtDecoded = jwt.verify(token, SECRET);
+		let conn;
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "select profile_picture where idUser = ?";
+			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
+			if (rows.length != 0)
+			{
+				res.json({success: true, message: "Profile pic is unset"});
+			}
+			const updateQuery = "UPDATE tr_User SET profile_picture = NULL WHERE idUser = ?";
+			await conn.query(updateQuery, [req.file, jwtDecoded.idUser);
+			res.json({success: true, message: "Profile pic was removed"});
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	}catch(err)
+	{
+		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+	}
+});
+
 //start the server
 app.listen(PORT, () => {
 	console.log(`Serveur Express en écoute sur le port ${PORT}...`);
