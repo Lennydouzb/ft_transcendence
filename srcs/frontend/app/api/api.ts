@@ -1,4 +1,4 @@
-const API = "http://backend:5000/api";
+const API = "http://backend:8080/api";
 
 async function callBackend(endpoint: string, options: RequestInit = {})
 {
@@ -27,17 +27,17 @@ async function callBackend(endpoint: string, options: RequestInit = {})
 
 export async function fetchUsers()
 {
-	return callBackend("users")
+	return callBackend("/users")
 }
 
 export async function fetchGames()
 {
-	return callBackend("games")
+	return callBackend("/games")
 }
 
 export async function fetchProjects()
 {
-	return callBackend("projects")
+	return callBackend("/projects")
 }
 
 export async function fetchParticipants(idGame: number)
