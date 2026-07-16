@@ -1,0 +1,143 @@
+const API = "http://backend:5000/api";
+
+async function callBackend(endpoint: string, options: RequestInit = {})
+{
+	const URL = API + endpoint;
+	//this is to check if a file is passed (for profile pics)
+	const isFormData = options.body instanceof FormData;
+	const headers: Record<string, string> = {...options.header as Recrod<string, string>,};
+	if (!isFormData)
+		headers["Content-Type"] = "applications/json";
+	try
+	{
+		const response = await fetch (URL,{
+			...options,
+			headers
+			},
+		});
+		if (!response.ok){
+			throw new Error("This endpoint couldn't be called");
+		}
+		return await response.json();
+	} catch (error)
+	{
+		console.error("Error:", error);
+		throw error;
+	}
+}
+
+export async function fetchUsers()
+{
+	return callBackend("users")
+}
+
+export async function fetchGames()
+{
+	return callBackend("games")
+}
+
+export async function fetchProjects()
+{
+	return callBackend("projects")
+}
+
+export async function fetchParticipants(idGame: number)
+{
+	return callBackend('/gameParticipants', {
+		method: 'POST',
+		body: JSON.stringify({ idGame }),
+	});
+}
+
+export async function fetchUserGames(idUser: number)
+{
+	return callBackend('/userGames', {
+		method: 'POST',
+		body: JSON.stringify({ idUser }),
+	});
+}
+
+export async function fetchGameProjects(idGame: number)
+{
+	return callBackend('/gameProjects', {
+		method: 'POST',
+		body: JSON.stringify({ idGame }),
+	});
+}
+
+export async function fetchCreateUser(nameA: string, passwordA: string, mailA: string)
+{
+	return callBackend('/createUser', {
+		method: 'POST',
+		body: JSON.stringify({ name: NameA,
+							 password: passwordA,
+							 mail: mailA}),
+	});
+}
+
+export async function fetchLogin(mailA: string, passwordA: string)
+{
+	return callBackend('/login', {
+		method: 'POST',
+		body: JSON.stringify({password: passwordA,
+							 mail: mailA}),
+	});
+}
+
+export async function fetchCreateProject(linkA: string, nameA: string, token: string)
+{
+	return callBackend('/createProject', {
+		method: 'POST',
+		body: JSON.stringify({link: linkA,
+								name: nameA}),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchcreateQuestions(projects: number[], idGame: number, token: string)
+{
+	return callBackend('/createQuestions', {
+		method: 'POST',
+		body: JSON.stringify({projects,
+								name}),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchCreateParticipants(users: number[], idGame: number, token: string)
+{
+	return callBackend('/createParticipans', {
+		method: 'POST',
+		body: JSON.stringify({users,
+								idGame}),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchUpdateUserName(name: string, token: string)
+{
+	return callBackend('/updateUserName', {
+		method: 'PUT',
+		body: JSON.stringify({name}),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchUpdateUserImage(image: File, token: string)
+{
+	const formData = new FormData();
+	formData.append('img', image);
+	return callBackend('/updateUserName', {
+		method: 'PUT',
+		body: JSON.stringify({name}),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchDeleteUserImage(token: string)
+{
+	return callBackend('/deleteUserImage', {
+		method: 'PUT',
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
