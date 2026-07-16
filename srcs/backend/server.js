@@ -284,7 +284,7 @@ app.post('/api/createProject', async (req, res) => {
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
-	if ((fulltoken.split(' ').length != 2)
+	if (fulltoken.split(' ').length != 2)
 	{
 		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
 	}
@@ -328,7 +328,7 @@ app.post('/api/createQuestions', async (req, res) => {
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
-	if ((fulltoken.split(' ').length != 2)
+	if (fulltoken.split(' ').length != 2)
 	{
 		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
 	}
@@ -381,7 +381,7 @@ app.post('/api/createParticipants', async (req, res) => {
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
-	if ((fulltoken.split(' ').length != 2)
+	if (fulltoken.split(' ').length != 2)
 	{
 		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
 	}
@@ -440,7 +440,7 @@ app.put('/api/updateUserName', async (req, res) => {
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
-	if ((fulltoken.split(' ').length != 2)
+	if (fulltoken.split(' ').length != 2)
 	{
 		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
 	}
@@ -481,7 +481,7 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
-	if ((fulltoken.split(' ').length != 2)
+	if (fulltoken.split(' ').length != 2)
 	{
 		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
 	}
@@ -532,7 +532,16 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
  * ------------------------------------------------------
 */
 app.delete('/api/deleteUserImage/', async (req, res) => {
-	const token = req.headers.authorization;
+	const fulltoken = req.headers.authorization;
+	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	{
+		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
+	}
+	if (fulltoken.split(' ').length != 2)
+	{
+		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
+	}
+	const token = fulltoken.split(' ')[1];
     let conn;
 
 	if (!token)
