@@ -10,15 +10,16 @@ const path = require('path');
 const upload = multer({ dest: 'uploads/' });
 const salt = 10;
 const app = express();
-const SECRET = "SKIBIDIDOPOPDOPDOP"; //@TODO a voir comment recup le env
+const SECRET = process.env.SECRET; 
 //this is to read json
 app.use(express.json());
 const PORT = 8080;
 
 const pool = mariadb.createPool({
 	host: 'mariadb',
-	user: process.env.DB_USER || 'ldesboui',
-	password: process.env.DB_PASSWORD || '1234',
+	user: process.env.DB_USER,
+	password: process.env.DB_PASSWORD,
+	database: process.env.DB_NAME,
 	connectionLimit: 5
 });
 

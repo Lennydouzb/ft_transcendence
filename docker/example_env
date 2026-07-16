@@ -1,4 +1,4 @@
-DOMAIN_NAME=ldesboui.42.fr
-
 DB_USER=ldesboui
 DB_PASSWORD=1234
+DB_NAME= ft_transcendence
+SECRET = "fgasdg6fgk40nmbs42jkgklgf0ffgsdfgkuy3t"
