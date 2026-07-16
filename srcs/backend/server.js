@@ -6,7 +6,10 @@ const bcrypt = require('bcrypt');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-
+BigInt.prototype.toJSON = function ()
+{
+	return number(this);
+}
 const upload = multer({ dest: 'uploads/' });
 const salt = 10;
 const app = express();
