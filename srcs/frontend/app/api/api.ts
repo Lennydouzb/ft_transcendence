@@ -5,15 +5,15 @@ async function callBackend(endpoint: string, options: RequestInit = {})
 	const URL = API + endpoint;
 	//this is to check if a file is passed (for profile pics)
 	const isFormData = options.body instanceof FormData;
-	const headers: Record<string, string> = {...options.header as Recrod<string, string>,};
+	const headers: Record<string, string> = {...options.headers as Record<string, string>,};
 	if (!isFormData)
-		headers["Content-Type"] = "applications/json";
+		headers["Content-Type"] = "application/json";
 	try
 	{
 		const response = await fetch (URL,{
 			...options,
 			headers
-			},
+			}
 		});
 		if (!response.ok){
 			throw new Error("This endpoint couldn't be called");
@@ -69,7 +69,7 @@ export async function fetchCreateUser(nameA: string, passwordA: string, mailA: s
 {
 	return callBackend('/createUser', {
 		method: 'POST',
-		body: JSON.stringify({ name: NameA,
+		body: JSON.stringify({ name: nameA,
 							 password: passwordA,
 							 mail: mailA}),
 	});
@@ -99,7 +99,7 @@ export async function fetchcreateQuestions(projects: number[], idGame: number, t
 	return callBackend('/createQuestions', {
 		method: 'POST',
 		body: JSON.stringify({projects,
-								name}),
+								idGame}),
 		headers: {'Authorization': `Bearer ${token}`}
 	});
 }
