@@ -1,4 +1,4 @@
-const API = "http://backend:8080/api";
+const API = "http://localhost:8080/api";
 
 async function callBackend(endpoint: string, options: RequestInit = {})
 {
