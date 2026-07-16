@@ -10,7 +10,7 @@ export default function Home() {
   const [backendStatus, setBackendStatus] = useState('En attente du backend...');
   const [dbStatus, setDbStatus] = useState('En attente de la base de données...');
   const [dbData, setDbData] = useState<any>(null);
-  const USER_TOKEN = await Api.fetchCreateUser("Lenny", "duzb", "desbouislenny@gmail.com")
+  const USER_TOKEN = await Api.fetchCreateUser
   useEffect(() => {
     // Test du Backend Node.js
     async function testerBackend() {
