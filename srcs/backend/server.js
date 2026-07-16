@@ -91,7 +91,7 @@ app.get('/api/games', async (req, res) => {
 	let conn;
 	try {
 		conn = await pool.getConnection();
-		const rows = await conn.query("SELECT * from tr_Games");
+		const rows = await conn.query("SELECT * from tr_Game");
 		res.json(rows);	
 	} catch (err) {
 		console.error("Database error:", err);
@@ -110,7 +110,7 @@ app.get('/api/projects', async (req, res) => {
 	let conn;
 	try {
 		conn = await pool.getConnection();
-		const rows = await conn.query("SELECT * from tr_Projects");
+		const rows = await conn.query("SELECT * from tr_Project");
 		res.json(rows);	
 	} catch (err) {
 		console.error("Database error:", err);

@@ -105,7 +105,7 @@ export async function fetchcreateQuestions(projects: number[], idGame: number, t
 
 export async function fetchCreateParticipants(users: number[], idGame: number, token: string)
 {
-	return callBackend('/createParticipans', {
+	return callBackend('/createParticipants', {
 		method: 'POST',
 		body: JSON.stringify({users,
 								idGame}),
