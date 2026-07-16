@@ -9,22 +9,22 @@ mariadb -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME};"
 mariadb -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASSWORD}';"
 mariadb -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%' WITH GRANT OPTION;"
 mariadb -e "FLUSH PRIVILEGES;"
-mariadb -u $DB_USER -p ${DB_NAME} -e "
+mariadb -u $DB_USER -p${DB_PASSWORD} ${DB_NAME} -e "
 CREATE TABLE tr_User(
    idUser INT AUTO_INCREMENT,
-   email VARCHAR(50),
+   mail VARCHAR(50),
    password CHAR(60),
    name VARCHAR(50),
    profile_picture VARCHAR(50),
    PRIMARY KEY(idUser),
-   UNIQUE(email)
+   UNIQUE(mail)
 );
 
 CREATE TABLE tr_Game(
    idGame INT AUTO_INCREMENT,
    date_ DATE,
    name VARCHAR(50),
-   PRIMARY KEY(idGame),
+   PRIMARY KEY(idGame)
 );
 
 CREATE TABLE tr_Project(
