@@ -13,7 +13,6 @@ async function callBackend(endpoint: string, options: RequestInit = {})
 		const response = await fetch (URL,{
 			...options,
 			headers
-			}
 		});
 		if (!response.ok){
 			throw new Error("This endpoint couldn't be called");
