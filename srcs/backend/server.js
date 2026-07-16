@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 BigInt.prototype.toJSON = function ()
 {
-	return number(this);
+	return Number(this);
 }
 const upload = multer({ dest: 'uploads/' });
 const salt = 10;
@@ -284,7 +284,7 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/createProject', async (req, res) => {
 	const {link, name} = req.body;
 	const fulltoken = req.headers.authorization;
-	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
@@ -328,7 +328,7 @@ app.post('/api/createProject', async (req, res) => {
 app.post('/api/createQuestions', async (req, res) => {
 	const {projects, idGame} = req.body;
 	const fulltoken = req.headers.authorization;
-	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
@@ -381,7 +381,7 @@ app.post('/api/createQuestions', async (req, res) => {
 app.post('/api/createParticipants', async (req, res) => {
 	const {users, idGame} = req.body;
 	const fulltoken = req.headers.authorization;
-	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
@@ -440,7 +440,7 @@ app.post('/api/createParticipants', async (req, res) => {
 app.put('/api/updateUserName', async (req, res) => {
 	const { name } = req.body;
 	const fulltoken = req.headers.authorization;
-	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
@@ -479,9 +479,8 @@ app.put('/api/updateUserName', async (req, res) => {
 
 
 app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
-    let conn;
 	const fulltoken = req.headers.authorization;
-	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
@@ -537,7 +536,7 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 */
 app.delete('/api/deleteUserImage/', async (req, res) => {
 	const fulltoken = req.headers.authorization;
-	if (!fulltoken || fulltoken.startsWith("Bearer "))
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 	{
 		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
 	}
@@ -546,7 +545,6 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
 	}
 	const token = fulltoken.split(' ')[1];
-    let conn;
 
 	if (!token)
 	{

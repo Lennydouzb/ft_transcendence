@@ -126,9 +126,9 @@ export async function fetchUpdateUserImage(image: File, token: string)
 {
 	const formData = new FormData();
 	formData.append('img', image);
-	return callBackend('/updateUserName', {
+	return callBackend('/updateUserImage', {
 		method: 'PUT',
-		body: JSON.stringify({name}),
+		body: formData,
 		headers: {'Authorization': `Bearer ${token}`}
 	});
 }
@@ -136,7 +136,7 @@ export async function fetchUpdateUserImage(image: File, token: string)
 export async function fetchDeleteUserImage(token: string)
 {
 	return callBackend('/deleteUserImage', {
-		method: 'PUT',
+		method: 'DELETE',
 		headers: {'Authorization': `Bearer ${token}`}
 	});
 }
