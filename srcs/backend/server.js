@@ -307,7 +307,7 @@ app.post('/api/createProject', async (req, res) => {
 			conn = await pool.getConnection();
 			const sqlQuery = "insert into tr_Project (github_link, name) values(?, ?)";
 			const rows = await conn.query(sqlQuery, [link, name]);
-			res.status(200).json({success: true, idProject : rows[0].insertId});
+			res.status(200).json({success: true, idProject : rows.insertId});
 		} catch (err) {
 			console.error("Database error:", err);
 			res.status(500).json({ 
@@ -391,7 +391,7 @@ app.post('/api/createQuestions', async (req, res) => {
 		const jwtDecoded = jwt.verify(token, SECRET);
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "insert into tr_Question (idGame, idProject) values(?, ?)";
+			const sqlQuery = "insert ignore into tr_Question (idGame, idProject) values(?, ?)";
 			//for each attribute push an object into a tab (it associate idGame to each project id);
 			const values = projects.map(idProject => [
 				idGame,
@@ -444,7 +444,7 @@ app.post('/api/createParticipants', async (req, res) => {
 		const jwtDecoded = jwt.verify(token, SECRET);
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "insert into tr_Participate values(?, ?)";
+			const sqlQuery = "insert ignore into tr_Participate values(?, ?)";
 			//for each attribute push an object into a tab (it associate idGame to each project id);
 			const values = users.map(idUser => [
 				idUser,
