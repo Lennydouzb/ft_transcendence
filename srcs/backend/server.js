@@ -538,7 +538,7 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 			conn = await pool.getConnection();
 			const sqlQuery = "select profile_picture from tr_User where idUser = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-			if (rows.length != 0)
+			if (rows.length != 0 && rows[0].profile_picture)
 			{
 				const imgPath = path.join(__dirname, "uploads", rows[0].profile_picture);
 				try{
@@ -601,6 +601,10 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 			}
 			const updateQuery = "UPDATE tr_User SET profile_picture = NULL WHERE idUser = ?";
 			await conn.query(updateQuery, [jwtDecoded.idUser]);
+			const imgPath = path.join(__dirname, "uploads", rows[0].profile_picture);
+			if (fs.existsSync(imgPath)) {
+				fs.unlinkSync(imgPath);
+			}
 			res.json({success: true, message: "Profile pic was removed"});
 		} catch (err) {
 			console.error("Database error:", err);
