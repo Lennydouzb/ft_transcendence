@@ -218,7 +218,7 @@ app.post('/api/createUser', async (req, res) => {
 	try {
 		conn = await pool.getConnection();
 		const hashedPass = await bcrypt.hash(password, salt);
-		const sqlQuery = "insert into tr_User values (?, ?, ?)";
+		const sqlQuery = "insert into tr_User (mail, password, name)values (?, ?, ?)";
 		const rows = await conn.query(sqlQuery, [mail, hashedPass, name]);
 		const token = jwt.sign(
 			{ idUser: rows.insertId},
