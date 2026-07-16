@@ -22,14 +22,13 @@ CREATE TABLE tr_User(
 
 CREATE TABLE tr_Game(
    idGame INT AUTO_INCREMENT,
-   date_ DATE,
    name VARCHAR(50),
    PRIMARY KEY(idGame)
 );
 
 CREATE TABLE tr_Project(
    idProject INT AUTO_INCREMENT,
-   lien_github VARCHAR(150) NOT NULL,
+   github_link VARCHAR(150) NOT NULL,
    name VARCHAR(50),
    PRIMARY KEY(idProject)
 );

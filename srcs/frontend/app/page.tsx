@@ -1,5 +1,5 @@
 'use client';
-
+//@TODO AI GENERATED FOR TESTS PURPOSES
 import { useState } from 'react';
 import * as api from './api/api';
 
@@ -8,8 +8,11 @@ export default function TestAPI() {
   const [loading, setLoading] = useState<boolean>(false);
   const [endpointActuel, setEndpointActuel] = useState<string>('');
   
-  // On stocke le token pour pouvoir tester les routes protégées
+  // On stocke le token ET les IDs générés pour que les requêtes s'enchaînent sans erreur SQL
   const [token, setToken] = useState<string>('');
+  const [lastUserId, setLastUserId] = useState<number>(1);
+  const [lastGameId, setLastGameId] = useState<number>(1);
+  const [lastProjectId, setLastProjectId] = useState<number>(1);
 
   // Fonction générique pour gérer les appels, les chargements et les erreurs
   const executerTest = async (nomEndpoint: string, fonctionApi: () => Promise<any>) => {
@@ -20,10 +23,16 @@ export default function TestAPI() {
       const data = await fonctionApi();
       setResultat({ success: true, data });
       
-      // Si c'est un login et qu'on reçoit un token, on le sauvegarde automatiquement
-      if (nomEndpoint === 'Login' && data?.token) {
+      // 1. Sauvegarde automatique du token (marche pour Login ET CreateUser)
+      if (data?.token) {
         setToken(data.token);
       }
+      
+      // 2. Sauvegarde automatique des IDs générés par MariaDB (AUTO_INCREMENT)
+      if (nomEndpoint === 'Create User' && data?.idUser) setLastUserId(data.idUser);
+      if (nomEndpoint === 'Create Game' && data?.idGame) setLastGameId(data.idGame);
+      if (nomEndpoint === 'Create Project' && data?.idProject) setLastProjectId(data.idProject);
+      
     } catch (erreur: any) {
       setResultat({ success: false, error: erreur.message || "Erreur inconnue" });
     } finally {
@@ -36,7 +45,7 @@ export default function TestAPI() {
       
       {/* Panneau de gauche : Les boutons d'action */}
       <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '90vh', overflowY: 'auto', paddingRight: '1rem' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#3b82f6' }}>🛠️ Testeur d'API</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#3b82f6' }}>🛠️ Testeur d'API (Dynamique)</h1>
         
         <div style={{ backgroundColor: '#1f2937', padding: '1rem', borderRadius: '8px' }}>
           <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#9ca3af' }}>1. Routes GET (Basiques)</h2>
@@ -50,34 +59,44 @@ export default function TestAPI() {
         <div style={{ backgroundColor: '#1f2937', padding: '1rem', borderRadius: '8px' }}>
           <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#9ca3af' }}>2. Authentification</h2>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button style={btnStyle} onClick={() => executerTest('Create User', () => api.fetchCreateUser('TestUser', 'pass123', 'test@mail.com'))}>
+            {/* On génère un mail aléatoire pour éviter l'erreur UNIQUE(mail) si on clique plusieurs fois */}
+            <button style={btnStyle} onClick={() => executerTest('Create User', () => api.fetchCreateUser('TestUser', 'pass123', `test_${Math.floor(Math.random() * 1000)}@mail.com`))}>
               Créer un Utilisateur
             </button>
             <button style={{...btnStyle, backgroundColor: '#059669'}} onClick={() => executerTest('Login', () => api.fetchLogin('test@mail.com', 'pass123'))}>
-              Login (Générer Token)
+              Login Manuel
             </button>
           </div>
           {token && <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#10b981', wordBreak: 'break-all' }}>Token actif : {token.substring(0, 20)}...</p>}
         </div>
 
         <div style={{ backgroundColor: '#1f2937', padding: '1rem', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#9ca3af' }}>3. Données liées (avec IDs = 1 par défaut)</h2>
+          <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#9ca3af' }}>3. Données liées (Auto-actualisées)</h2>
+          <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>Utilise automatiquement le Game {lastGameId} et User {lastUserId}</p>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button style={btnStyle} onClick={() => executerTest('Game Participants (id:1)', () => api.fetchParticipants(1))}>Participants (Game 1)</button>
-            <button style={btnStyle} onClick={() => executerTest('User Games (id:1)', () => api.fetchUserGames(1))}>Jeux de l'User 1</button>
-            <button style={btnStyle} onClick={() => executerTest('Game Projects (id:1)', () => api.fetchGameProjects(1))}>Projets du Game 1</button>
+            <button style={btnStyle} onClick={() => executerTest(`Game Participants (id:${lastGameId})`, () => api.fetchParticipants(lastGameId))}>Participants (Game {lastGameId})</button>
+            <button style={btnStyle} onClick={() => executerTest(`User Games (id:${lastUserId})`, () => api.fetchUserGames(lastUserId))}>Jeux de l'User {lastUserId}</button>
+            <button style={btnStyle} onClick={() => executerTest(`Game Projects (id:${lastGameId})`, () => api.fetchGameProjects(lastGameId))}>Projets du Game {lastGameId}</button>
           </div>
         </div>
 
         <div style={{ backgroundColor: '#1f2937', padding: '1rem', borderRadius: '8px' }}>
           <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#9ca3af' }}>4. Routes Protégées (Nécessitent un Token)</h2>
-          {!token && <p style={{ fontSize: '0.8rem', color: '#ef4444' }}>⚠️ Fais un Login d'abord pour avoir un token !</p>}
+          {!token && <p style={{ fontSize: '0.8rem', color: '#ef4444' }}>⚠️ Crée un utilisateur ou connecte-toi d'abord !</p>}
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', opacity: token ? 1 : 0.5, pointerEvents: token ? 'auto' : 'none' }}>
-            <button style={btnStyleProt} onClick={() => executerTest('Create Project', () => api.fetchCreateProject('https://github', 'ft_transcendence', token))}>Create Project</button>
-            <button style={btnStyleProt} onClick={() => executerTest('Create Questions', () => api.fetchcreateQuestions([1, 2], 1, token))}>Create Questions</button>
-            <button style={btnStyleProt} onClick={() => executerTest('Create Participants', () => api.fetchCreateParticipants([1, 2], 1, token))}>Create Participants</button>
-            <button style={btnStyleProt} onClick={() => executerTest('Update Name', () => api.fetchUpdateUserName('NouveauNom', token))}>Update Name</button>
-            <button style={btnStyleProt} onClick={() => executerTest('Delete Image', () => api.fetchDeleteUserImage(token))}>Delete Image</button>
+            
+            <button style={btnStyleProt} onClick={() => executerTest('Create Game', () => api.fetchCreateGame('Partie de Pong Finale', token))}>Create Game</button>
+            <button style={btnStyleProt} onClick={() => executerTest('Create Project', () => api.fetchCreateProject('https://github.com', 'ft_transcendence', token))}>Create Project</button>
+            
+            <button style={{...btnStyleProt, backgroundColor: '#ea580c'}} onClick={() => executerTest('Create Questions', () => api.fetchcreateQuestions([lastProjectId], lastGameId, token))}>
+              Create Questions (Game {lastGameId}, Proj {lastProjectId})
+            </button>
+            <button style={{...btnStyleProt, backgroundColor: '#ea580c'}} onClick={() => executerTest('Create Participants', () => api.fetchCreateParticipants([lastUserId], lastGameId, token))}>
+              Create Participants (Game {lastGameId}, User {lastUserId})
+            </button>
+            
+            <button style={{...btnStyleProt, backgroundColor: '#be123c'}} onClick={() => executerTest('Update Name', () => api.fetchUpdateUserName('NouveauNom', token))}>Update Name</button>
+            <button style={{...btnStyleProt, backgroundColor: '#be123c'}} onClick={() => executerTest('Delete Image', () => api.fetchDeleteUserImage(token))}>Delete Image</button>
           </div>
         </div>
 

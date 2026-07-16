@@ -305,9 +305,9 @@ app.post('/api/createProject', async (req, res) => {
 		const jwtDecoded = jwt.verify(token, SECRET);
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "insert into tr_Project values(?, ?)";
+			const sqlQuery = "insert into tr_Project (github_link, name) values(?, ?)";
 			const rows = await conn.query(sqlQuery, [link, name]);
-			res.status(200).json({success: true});
+			res.status(200).json({success: true, idProject : rows[0].insertId});
 		} catch (err) {
 			console.error("Database error:", err);
 			res.status(500).json({ 
@@ -324,6 +324,44 @@ app.post('/api/createProject', async (req, res) => {
 	}
 });
 
+app.post('/api/createGame', async (req, res) => {
+	const {name} = req.body;
+	const fulltoken = req.headers.authorization;
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
+	{
+		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
+	}
+	if (fulltoken.split(' ').length != 2)
+	{
+		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
+	}
+	const token = fulltoken.split(' ')[1];
+	if (!name) {
+		return res.status(400).json({ success: false, message: "name is required" });
+	}
+	let conn;
+	try{
+		const jwtDecoded = jwt.verify(token, SECRET);
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "insert into tr_Game (name) values(?)";
+			const rows = await conn.query(sqlQuery, [name]);
+			res.status(200).json({success: true, idGame: rows.insertId});
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	}catch(err)
+	{
+		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+	}
+});
 
 app.post('/api/createQuestions', async (req, res) => {
 	const {projects, idGame} = req.body;
@@ -353,7 +391,7 @@ app.post('/api/createQuestions', async (req, res) => {
 		const jwtDecoded = jwt.verify(token, SECRET);
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "insert into tr_Question values(?, ?)";
+			const sqlQuery = "insert into tr_Question (idGame, idProject) values(?, ?)";
 			//for each attribute push an object into a tab (it associate idGame to each project id);
 			const values = projects.map(idProject => [
 				idGame,
