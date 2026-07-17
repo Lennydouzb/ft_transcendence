@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const wsFunc = require('./ws/function');
 BigInt.prototype.toJSON = function ()
 {
 	return Number(this);
@@ -13,6 +14,8 @@ BigInt.prototype.toJSON = function ()
 const upload = multer({ dest: 'uploads/' });
 const salt = 10;
 const app = express();
+const server = http.createServer(app);
+const ws = new WebSocket.Server({server});
 const SECRET = process.env.SECRET; 
 //this is to read json
 app.use(express.json());
@@ -206,9 +209,9 @@ app.post('/api/gameProjects', async (req, res) => {
 
 
 app.post('/api/createUser', async (req, res) => {
-	const { name, password, mail} = req.body;
+	const { nameA, password, mail} = req.body;
 
-	if (!name) {
+	if (!nameA) {
 		return res.status(400).json({ success: false, message: "name is required" });
 	}
 	if (!password) {
@@ -222,9 +225,10 @@ app.post('/api/createUser', async (req, res) => {
 		conn = await pool.getConnection();
 		const hashedPass = await bcrypt.hash(password, salt);
 		const sqlQuery = "insert into tr_User (mail, password, name)values (?, ?, ?)";
-		const rows = await conn.query(sqlQuery, [mail, hashedPass, name]);
+		const rows = await conn.query(sqlQuery, [mail, hashedPass, nameA]);
 		const token = jwt.sign(
 			{ idUser: rows.insertId},
+			name : nameA
 			SECRET,
 			{expiresIn: "24h"}
 		);
@@ -252,7 +256,7 @@ app.post('/api/login', async (req, res) => {
 	let conn;
 	try {
 		conn = await pool.getConnection();
-		const sqlQuery = "select password, idUser from tr_User where mail = ?";
+		const sqlQuery = "select password, idUser, name from tr_User where mail = ?";
 		const rows = await conn.query(sqlQuery, [mail]);
 		if (rows.length === 0)
 		{
@@ -265,6 +269,7 @@ app.post('/api/login', async (req, res) => {
 		}	
 		const token = jwt.sign(
 			{ idUser: rows[0].idUser},
+			name : rows[0].name,
 			SECRET,
 			{expiresIn: "24h"}
 		);
@@ -363,7 +368,8 @@ app.post('/api/createGame', async (req, res) => {
 	}
 });
 
-app.post('/api/createQuestions', async (req, res) => {
+/*this route might desync with websocket but i might use the code later
+ * app.post('/api/createQuestions', async (req, res) => {
 	const {projects, idGame} = req.body;
 	const fulltoken = req.headers.authorization;
 	if (!fulltoken || !fulltoken.startsWith("Bearer "))
@@ -415,7 +421,9 @@ app.post('/api/createQuestions', async (req, res) => {
 		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
 	}
 });
+*/
 
+/*this route might desync with websocket but i might use the code later
 app.post('/api/createParticipants', async (req, res) => {
 	const {users, idGame} = req.body;
 	const fulltoken = req.headers.authorization;
@@ -468,7 +476,7 @@ app.post('/api/createParticipants', async (req, res) => {
 		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
 	}
 });
-
+*/
 /*
  * ------------------------------------------------------
  * -                     Modfying                       -
@@ -621,8 +629,18 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
 	}
 });
+/*---------------------------------
+ *							       
+ *		WEBSOCKET
+ *---------------------------------
+*/
 
-//start the server
-app.listen(PORT, () => {
-	console.log(`Serveur Express en écoute sur le port ${PORT}...`);
+wss.on('connection', (ws)){
 });
+//start the server
+server.listen(PORT, () => {
+	console.log("Server is launched");
+});
+
+
+

@@ -101,7 +101,8 @@ export async function fetchCreateGame(nameA: string, token: string)
 		headers: {'Authorization': `Bearer ${token}`}
 	});
 }
-export async function fetchcreateQuestions(projects: number[], idGame: number, token: string)
+/*disabled express route we might need the code later (desync with websocket)
+ * export async function fetchcreateQuestions(projects: number[], idGame: number, token: string)
 {
 	return callBackend('/createQuestions', {
 		method: 'POST',
@@ -119,7 +120,7 @@ export async function fetchCreateParticipants(users: number[], idGame: number, t
 								idGame}),
 		headers: {'Authorization': `Bearer ${token}`}
 	});
-}
+}*/
 
 export async function fetchUpdateUserName(name: string, token: string)
 {
