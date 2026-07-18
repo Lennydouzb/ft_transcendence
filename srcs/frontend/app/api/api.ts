@@ -93,14 +93,14 @@ export async function fetchCreateProject(linkA: string, nameA: string, token: st
 	});
 }
 
-export async function fetchCreateGame(nameA: string, token: string)
+/*export async function fetchCreateGame(nameA: string, token: string)
 {
 	return callBackend('/createGame', {
 		method: 'POST',
 		body: JSON.stringify({name: nameA}),
 		headers: {'Authorization': `Bearer ${token}`}
 	});
-}
+}*/
 /*disabled express route we might need the code later (desync with websocket)
  * export async function fetchcreateQuestions(projects: number[], idGame: number, token: string)
 {

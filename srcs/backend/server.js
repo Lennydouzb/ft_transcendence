@@ -328,7 +328,7 @@ app.post('/api/createProject', async (req, res) => {
 		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
 	}
 });
-
+/* this route might desync with ws
 app.post('/api/createGame', async (req, res) => {
 	const {name} = req.body;
 	const fulltoken = req.headers.authorization;
@@ -367,7 +367,7 @@ app.post('/api/createGame', async (req, res) => {
 		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
 	}
 });
-
+*/
 /*this route might desync with websocket but i might use the code later
  * app.post('/api/createQuestions', async (req, res) => {
 	const {projects, idGame} = req.body;
