@@ -289,6 +289,23 @@ app.post('/api/login', async (req, res) => {
 	}
 });
 
+async function checkLinkValidity(link)
+{
+	const parts = link.split('/')
+	parts[2] = "api" + parts[2];
+	parts.splice(3, 0, "repo");
+	parts.push("languages");
+	const realApiUrl = parts.join('/');
+	const headers ={
+		Authorization: "Bearer " + process.env.API_TOKEN;
+	}
+	const response = await fetch(realApiUrl, headers);
+	if (response.status == 304)
+		return 0;
+	else
+		return 1;
+}
+
 app.post('/api/createProject', async (req, res) => {
 	const {link, name} = req.body;
 	const fulltoken = req.headers.authorization;
@@ -307,6 +324,10 @@ app.post('/api/createProject', async (req, res) => {
 	}
 	if (!name) {
 		return res.status(400).json({ success: false, message: "name is required" });
+	}
+	if (!checkLinkValidity(link))
+	{
+		return res.status(400).json({ success: false, message: "this repo doesnt exist ir isn't accessible" });
 	}
 	let conn;
 	try{

@@ -310,6 +310,13 @@ const manageCreate = async (ws, args) =>
 		ws.send(JSON.stringify({error: "token is needed"}));
 }
 
+function shuffleProjects(&game) {
+    for (let i = game.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [game[i], game[j]] = [game[j], game[i]];
+    }
+    return array;
+}
 const manageStart = (ws, args) =>
 {
 
@@ -339,6 +346,7 @@ const manageStart = (ws, args) =>
 							idGame: user.idGame,
 						}));
 					}
+					shuffleProjects(game);
 					startQuestion(user.idGame);
 				}
 				else
@@ -364,9 +372,25 @@ const getActions =
 		'start':manageStart
 	};
 
-
-const startQuestion = (idGame) => 
+async function loadQuestion(link)
 {
+	const parts = link.split('/')
+	parts[2] = "api" + parts[2];
+	parts.splice(3, 0, "repo");
+	parts.push("languages");
+	const realApiUrl = parts.join('/');
+	const headers = {
+		Authorization = "Bearer " + process.env.API_TOKEN;
+	}
+	const response = await fetch(realApiUrl, headers);
+	let pairs = Object.entries(response);
+	pairs.sort((a, b) => a[1] - b[1]);
+	const mostUsedLanguage = pairs[0][0];
+}
+
+function startQuestion(idGame)
+{
+	const 
 	const game = openedGames
 }
 module.exports = getActions;

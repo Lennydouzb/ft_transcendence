@@ -1,4 +1,5 @@
 DB_USER=ldesboui
 DB_PASSWORD=1234
 DB_NAME= ft_transcendence
-SECRET = "fgasdg6fgk40nmbs42jkgklgf0ffgsdfgkuy3t"
+SECRET = fgasdg6fgk40nmbs42jkgklgf0ffgsdfgkuy3t
+API_TOKEN = your_Github_token
