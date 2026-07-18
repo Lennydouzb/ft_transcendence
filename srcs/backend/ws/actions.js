@@ -378,6 +378,7 @@ async function loadQuestion(link)
 	parts[2] = "api" + parts[2];
 	parts.splice(3, 0, "repo");
 	parts.push("languages");
+	realApiUrl = "https://api.github.com/repo/" + parts[4] + "/"
 	const realApiUrl = parts.join('/');
 	const headers = {
 		Authorization = "Bearer " + process.env.API_TOKEN;
@@ -385,7 +386,9 @@ async function loadQuestion(link)
 	const response = await fetch(realApiUrl, headers);
 	let pairs = Object.entries(response);
 	pairs.sort((a, b) => a[1] - b[1]);
-	const mostUsedLanguage = pairs[0][0];
+	const mostUsedLanguage = pairs[0][0];https:
+	//api.github.com/search/code?q=repo:Lennydouzb/ft_transcendence+language:javascript
+	const parts2 = link.split('')
 }
 
 function startQuestion(idGame)
