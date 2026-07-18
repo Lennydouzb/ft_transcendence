@@ -10,6 +10,32 @@ const pool = mariadb.createPool({
 	database: process.env.DB_NAME,
 	connectionLimit: 5
 });
+
+async function verifyProjectsExist (projectsArray){
+	if (!Array.isArray(projectsArray) || projectsArray.length === 0) {
+		return false;
+	}
+
+	let conn;
+	try {
+		conn = await pool.getConnection();
+
+		const placeholders = projectsArray.map(() => '?').join(',');
+
+		// gotta put ` instead of '  for the ${placeholders}
+		const sqlQuery = `select idProject from tr_Project where idProject in (${placeholders})`;
+		const rows = await conn.query(sqlQuery, projectsArray);
+
+		return rows.length === projectsArray.length;
+
+	} catch (err) {
+		console.error("database error", err);
+		return false;
+	} finally {
+		if (conn) conn.release();
+	}
+};
+
 /*
  * sessionsUsers (Map)
  * Key: ws (WebSocket object)
@@ -31,9 +57,15 @@ const pool = mariadb.createPool({
  *   users: { 
  *     [idUser]: <User Value Object from sessionsUsers> 
  *   },
- *   currentAnswer: String
- *   currentPoint : Number
- *   started: Number
+ *	 projects:
+ *	 {
+ *		[idProject]: link
+ *	 },
+ *   currentAnswer: String,
+ *   currentPoint : Number,
+ *   started: Number,
+ *   Qduration: Number,
+ *   host: String,
  * }
  */
 const manageJoin = (ws, args) =>
@@ -44,6 +76,7 @@ const manageJoin = (ws, args) =>
 		return;
 	}
 	const jwtDecoded = jwt.verify(args.token, SECRET);
+	const user = sessionsUsers.get(ws);
 	if (args.spectate)
 	{
 		user.spectate = args.spectate;
@@ -54,7 +87,6 @@ const manageJoin = (ws, args) =>
 		ws.send(JSON.stringify({error: "no idGame"}));
 		return;
 	}
-	const user = sessionsUsers.get(ws);
 	if (user.idGame != -1)
 	{
 		ws.send(JSON.stringify({error: "no specified game"}));
@@ -65,15 +97,16 @@ const manageJoin = (ws, args) =>
 		ws.send(JSON.stringify({error: "this game doesnt exist"}));
 		return;
 	}
-	if (openedGames.get(args.idGames).started == 1)
+	if (openedGames.get(args.idGame).started == 1)
 	{
 		ws.send(JSON.stringify({error: "this game is already started"}));
 		return;
 	}
+	const game = openedGames.get(args.idGame);
 	user.idGame = args.idGame;
 	const gameUsers = Object.values(game.users);
 	//(iterator like) but anUser is an element of gameUsers
-	for (anUser of gameUsers)
+	for (let anUser of gameUsers)
 	{
 		anUser.ws.send(JSON.stringify({
 			action: "join",
@@ -82,7 +115,8 @@ const manageJoin = (ws, args) =>
 			name: user.name
 		}));
 	}
-	openedGames.users[user.idUser] = user;
+
+	game.users[user.idUser] = user;
 	user.ws.send(JSON.stringify({idGame: user.idGame, gameUsers}));
 };
 
@@ -107,11 +141,11 @@ const manageMsg = (ws, args) =>
 	}
 	if (openedGames.has(user.idGame))
 	{
-		const theGame = openedGames.get(user.idGame);
+		const game = openedGames.get(user.idGame);
 		//this is a conversion of every users of game to a list
 		const gameUsers = Object.values(game.users);
 		//(iterator like) but anUser is an element of gameUsers
-		for (anUser of gameUsers)
+		for (let anUser of gameUsers)
 		{
 			anUser.ws.send(JSON.stringify({
 				action: "msg",
@@ -127,9 +161,10 @@ const manageMsg = (ws, args) =>
 			message: args.message,
 			idUser: user.idUser,
 			name: user.name
-		});
+		}));
 	}
-	ws.send(JSON.stringify({error: "no message"}));
+	else
+		ws.send(JSON.stringify({error: "no message"}));
 
 };
 
@@ -190,14 +225,14 @@ const manageAuth = (ws, args) =>
 	{
 		const jwtDecoded = jwt.verify(args.token, SECRET);
 		sessionsUsers.set(ws, {
-			idUser = jwtDecoded.idUser,
-			name = jwtDecoded.name,
-			mail = jwtDecoded.mail
-			idGame = -1;
-			spectate = 0;
-			ws = ws;
-			score = 0
-			hasAnswered = 0;
+			idUser: jwtDecoded.idUser,
+			name: jwtDecoded.name,
+			mail: jwtDecoded.mail,
+			idGame: -1,
+			spectate: 0,
+			ws: ws,
+			score: 0,
+			hasAnswered: 0
 		});
 	}
 	else
@@ -208,52 +243,71 @@ const manageCreate = async (ws, args) =>
 {
 	if (args.token)
 	{
-		const jwtDecoded = jwt.verify(args.token, SECRET);
 		if (args.idGame)
 		{
 			if (args.name)
 			{
-				if (sessionsUsers.has(ws))
+				if (args.Qduration && args.Qduration > 3)
 				{
-					const user = sessionsUsers.get(ws);
-					if (user.idGame == -1)
+					if (args.projects)
 					{
-						let conn;
-						try {
-							conn = await pool.getConnection();
-							const sqlQuery = "insert into tr_Game (name) values(?)";
-							const rows = await conn.query(sqlQuery, [name]);
-							res.status(200).json({success: true, idGame: rows.insertId});
-							user.idGame = rows.insertId;
-						} catch (err) {
-							console.error("Database error:", err);
-							res.status(500).json({ 
-								success: false, 
-								message: 'cant connect', 
-								error: err.message 
-							});
-						} finally {
-							if (conn) conn.release();
+						if (!Array.isArray(args.projects) || args.projects.length === 0)
+						{
+								ws.send(JSON.stringify({ success: false, message: "projects are required" }));
 						}
-					}catch(err)
-					{
-						return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+						if (!( await verifyProjectsExist(args.projects)))
+						{
+								ws.send(JSON.stringify({ success: false, message: "there is an inexistant project" }));
+						}
+						const jwtDecoded = jwt.verify(args.token, SECRET);
+						if (sessionsUsers.has(ws))
+						{
+							const user = sessionsUsers.get(ws);
+							if (user.idGame == -1)
+							{
+								let conn;
+								try {
+									conn = await pool.getConnection();
+									const sqlQuery = "insert into tr_Game (name) values(?)";
+									const rows = await conn.query(sqlQuery, [args.name]);
+									user.idGame = rows.insertId;
+									openedGames.set(user.idGame, {
+										idGame: user.idGame,
+										users: {
+											[user.idUser]: user
+										},
+										projects: args.projects,
+										currentPoint : 10,
+										currentAnswer: null,
+										started: 0,
+										Qduration: args.Qduration,
+										host : user.idUser,
+									})
+									manageJoin(ws, {idGame: user.idGame, token: args.token });
+								} catch (err) {
+									console.error("Database error:", err);
+								} finally {
+									if (conn) conn.release();
+								}
+							}
+							else
+								ws.send(JSON.stringify({error: "user already in a game"}));
+						}
 					}
-
+					else	
+						ws.send(JSON.stringify({error: "projects are required"}));
 				}
 				else
-					ws.send(JSON.stringify({error: "name is required"}));
+					ws.send(JSON.stringify({error: "duration required or too short"}));
 			}
 			else
-				ws.send(JSON.stringify({error: "user already in a game"}));
+				ws.send(JSON.stringify({error: "name is required"}));
 		}
+		else
+			ws.send(JSON.stringify({error: "idGame is required"}));
 	}
 	else
-		ws.send(JSON.stringify({error: "idGame is required"}));
-
-}
-else
-	ws.send(JSON.stringify({error: "token is needed"}));
+		ws.send(JSON.stringify({error: "token is needed"}));
 }
 
 const manageStart = (ws, args) =>
@@ -269,8 +323,8 @@ const manageStart = (ws, args) =>
 			{
 				if (openedGames.has(user.idGame))
 				{
-					const theGame = openedGames.get(user.idGame);
-					if (theGame.host != user.idGame)
+					const game = openedGames.get(user.idGame);
+					if (game.host != user.idUser)
 					{
 						ws.send(JSON.stringify({error: "You're not host"}));
 						return;
@@ -278,13 +332,14 @@ const manageStart = (ws, args) =>
 					//this is a conversion of every users of game to a list
 					const gameUsers = Object.values(game.users);
 					//(iterator like) but anUser is an element of gameUsers
-					for (anUser of gameUsers)
+					for (let anUser of gameUsers)
 					{
 						anUser.ws.send(JSON.stringify({
 							action: "start",
 							idGame: user.idGame,
 						}));
 					}
+					startQuestion(user.idGame);
 				}
 				else
 					ws.send(JSON.stringify({error: "this game doesnt exist"}));
@@ -304,9 +359,14 @@ const getActions =
 		'join': manageJoin,
 		'msg': manageMsg,
 		'answer': manageAnswer,
-		'create':
+		'create': manageCreate,
 		'auth' : manageAuth,
 		'start':manageStart
 	};
 
+
+const startQuestion = (idGame) => 
+{
+	const game = openedGames
+}
 module.exports = getActions;

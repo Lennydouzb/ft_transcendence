@@ -4,4 +4,4 @@ COPY docker/backend/tools/package.json /app
 RUN apk add --no-cache python3 make g++
 RUN npm install
 COPY /srcs/backend /app
-CMD ["node","server.js"]
+CMD ["npm","server.js"]
