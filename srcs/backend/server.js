@@ -109,7 +109,6 @@ app.get('/api/games', async (req, res) => {
 	}
 });
 
-
 app.get('/api/projects', async (req, res) => {
 	let conn;
 	try {
@@ -127,7 +126,6 @@ app.get('/api/projects', async (req, res) => {
 		if (conn) conn.release();
 	}
 });
-
 
 app.post('/api/gameParticipants', async (req, res) => {
 	const { idGame } = req.body;
@@ -201,7 +199,6 @@ app.post('/api/gameProjects', async (req, res) => {
 	}
 });
 
-
 /*
  * -----------------------------------------------------------------------
  * -			Api to log update and create infos                       -
@@ -249,7 +246,9 @@ app.post('/api/createUser', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
 	const {mail, password} = req.body;
-	if (!password) {
+	if (!password) {layout(std430, binding = 0) readonly buffer InputGrid {
+    Cell cells_in[];
+};
 		return res.status(400).json({ success: false, message: "password is required" });
 	}
 	if (!mail) {
@@ -297,7 +296,7 @@ async function checkLinkValidity(link)
 	parts.push("languages");
 	const realApiUrl = parts.join('/');
 	const headers ={
-		Authorization: "Bearer " + process.env.API_TOKEN;
+		Authorization = "Bearer " + process.env.API_TOKEN;
 	}
 	const response = await fetch(realApiUrl, headers);
 	if (response.status == 304)
