@@ -222,7 +222,7 @@ app.post('/api/createUser', async (req, res) => {
 	try {
 		conn = await pool.getConnection();
 		const hashedPass = await bcrypt.hash(password, salt);
-		const sqlQuery = "insert into tr_User (mail, password, name)values (?, ?, ?)";
+		const sqlQuery = "insert into tr_User (mail, password, name, scoreTotal, totalWin)values (?, ?, ?, 0, 0)";
 		const rows = await conn.query(sqlQuery, [mail, hashedPass, nameA]);
 		const token = jwt.sign(
 			{ idUser: rows.insertId,
@@ -246,9 +246,7 @@ app.post('/api/createUser', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
 	const {mail, password} = req.body;
-	if (!password) {layout(std430, binding = 0) readonly buffer InputGrid {
-    Cell cells_in[];
-};
+	if (!password) {
 		return res.status(400).json({ success: false, message: "password is required" });
 	}
 	if (!mail) {
@@ -288,22 +286,6 @@ app.post('/api/login', async (req, res) => {
 	}
 });
 
-async function checkLinkValidity(link)
-{
-	const parts = link.split('/')
-	parts[2] = "api" + parts[2];
-	parts.splice(3, 0, "repo");
-	parts.push("languages");
-	const realApiUrl = parts.join('/');
-	const headers ={
-		Authorization = "Bearer " + process.env.API_TOKEN;
-	}
-	const response = await fetch(realApiUrl, headers);
-	if (response.status == 304)
-		return 0;
-	else
-		return 1;
-}
 
 app.post('/api/createProject', async (req, res) => {
 	const {link, name} = req.body;
