@@ -225,11 +225,12 @@ app.post('/api/createUser', async (req, res) => {
 		const sqlQuery = "insert into tr_User (mail, password, name, scoreTotal, totalWin)values (?, ?, ?, 0, 0)";
 		const rows = await conn.query(sqlQuery, [mail, hashedPass, nameA]);
 		const token = jwt.sign(
-			{ idUser: rows.insertId,
-			name : nameA,
+			{ 
+				idUser: rows.insertId,
+				name : nameA
+			},
 			SECRET,
 			{expiresIn: "24h"}
-			}
 		);
 		res.json({success: true, token: token});    
 	} catch (err) {
@@ -267,11 +268,12 @@ app.post('/api/login', async (req, res) => {
 			return res.status(401).json({error: "Incorrect mail or password"});
 		}	
 		const token = jwt.sign(
-			{ idUser: rows[0].idUser,
-			name : rows[0].name,
+			{
+				idUser: rows[0].idUser,
+				name : rows[0].name
+			},
 			SECRET,
 			{expiresIn: "24h"}
-			}
 		);
 		res.json({success: true, token: token});    
 	} catch (err) {
@@ -287,7 +289,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 
-app.post('/api/createProject', async (req, res) => {
+/*app.post('/api/createProject', async (req, res) => {
 	const {link, name} = req.body;
 	const fulltoken = req.headers.authorization;
 	if (!fulltoken || !fulltoken.startsWith("Bearer "))
@@ -330,9 +332,12 @@ app.post('/api/createProject', async (req, res) => {
 		}
 	}catch(err)
 	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
 	}
-});
+});*/
 /* this route might desync with ws
 app.post('/api/createGame', async (req, res) => {
 	const {name} = req.body;
@@ -524,7 +529,10 @@ app.put('/api/updateUserName', async (req, res) => {
 		}
 	}catch(err)
 	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
 	}
 });
 
@@ -576,7 +584,10 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 		}
 	}catch(err)
 	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
 	}
 });
 
@@ -631,7 +642,10 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 		}
 	}catch(err)
 	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" })
 	}
 });
 /*---------------------------------

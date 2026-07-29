@@ -1,5 +1,7 @@
 const sessionsUsers = new Map();
 const openedGames = new Map();
+const fs = require('fs/promises');
+const path = require('path'),    
 const SECRET = process.env.SECRET; 
 const jwt = require('jsonwebtoken');
 const mariadb = require('mariadb');
@@ -62,7 +64,6 @@ async function verifyProjectsExist (projectsArray){
  *		[idProject]: link
  *	 },
  *   currentAnswer: String,
- *   currentPoint : Number,
  *   started: Number,
  *   Qduration: Number,
  *   host: String,
@@ -112,12 +113,12 @@ const manageJoin = (ws, args) =>
 			action: "join",
 			idGame: user.idGame,
 			idUser: user.idUser,
+			spectate : user.spectate,
 			name: user.name
 		}));
 	}
-
 	game.users[user.idUser] = user;
-	user.ws.send(JSON.stringify({idGame: user.idGame, gameUsers}));
+	user.ws.send(JSON.stringify({action: 'selfjoin', idGame: user.idGame, gameUsers}));
 };
 
 const manageMsg = (ws, args) => 
@@ -200,10 +201,10 @@ const manageAnswer = (ws, args) =>
 		{
 			if (game.currentAnswer == args.answer)
 			{
-				user.score += game.currentPoint;
+				let scoreCalc = 100 / (1 + k * game.Qduration);
+				scoreCalc = Math.round(scoreCalc);
+				user.score += scoreCalc;
 				user.hasAnswered = 1;
-				if (game.currentPoint > 1)
-					game.currentPoint -= 1;
 				const gameUsers = Object.values(game.users);
 				for (let anUser of gameUsers) {
 					anUser.ws.send(JSON.stringify({
@@ -247,8 +248,6 @@ const manageCreate = async (ws, args) =>
 		{
 			if (args.name)
 			{
-				if (args.Qduration && args.Qduration > 3)
-				{
 					if (args.projects)
 					{
 						if (!Array.isArray(args.projects) || args.projects.length === 0)
@@ -277,10 +276,9 @@ const manageCreate = async (ws, args) =>
 											[user.idUser]: user
 										},
 										projects: args.projects,
-										currentPoint : 10,
 										currentAnswer: null,
 										started: 0,
-										Qduration: args.Qduration,
+										Qduration: 15,
 										host : user.idUser,
 									})
 									manageJoin(ws, {idGame: user.idGame, token: args.token });
@@ -347,7 +345,7 @@ const manageStart = (ws, args) =>
 						}));
 					}
 					shuffleProjects(game);
-					startQuestion(user.idGame);
+					startQuestion(game);
 				}
 				else
 					ws.send(JSON.stringify({error: "this game doesnt exist"}));
@@ -372,28 +370,15 @@ const getActions =
 		'start':manageStart
 	};
 
-async function loadQuestion(link)
+async function startQuestion(game)
 {
-	const parts = link.split('/')
-	parts[2] = "api" + parts[2];
-	parts.splice(3, 0, "repo");
-	parts.push("languages");
-	realApiUrl = "https://api.github.com/repo/" + parts[4] + "/"
-	const realApiUrl = parts.join('/');
-	const headers = {
-		Authorization = "Bearer " + process.env.API_TOKEN;
+	if (game.projects.length != 0)
+	{
+		const file = path.join(__dirname, game.projects[0].link);
+		const code = await fs.readFile(file, 'utf-8');
+		game.currentAnswer = game.projects[0].link;
+		const inerval = setInterval(() => {
+        }, 1000);
 	}
-	const response = await fetch(realApiUrl, headers);
-	let pairs = Object.entries(response);
-	pairs.sort((a, b) => a[1] - b[1]);
-	const mostUsedLanguage = pairs[0][0];https:
-	//api.github.com/search/code?q=repo:Lennydouzb/ft_transcendence+language:javascript
-	const parts2 = link.split('')
-}
-
-function startQuestion(idGame)
-{
-	const 
-	const game = openedGames
 }
 module.exports = getActions;
