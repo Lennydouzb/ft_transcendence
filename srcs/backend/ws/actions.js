@@ -1,7 +1,7 @@
 const sessionsUsers = new Map();
 const openedGames = new Map();
 const fs = require('fs/promises');
-const path = require('path'),    
+const path = require('path'); 
 const SECRET = process.env.SECRET; 
 const jwt = require('jsonwebtoken');
 const mariadb = require('mariadb');
@@ -66,6 +66,7 @@ async function verifyProjectsExist (projectsArray){
  *   currentAnswer: String,
  *   started: Number,
  *   Qduration: Number,
+ *   canAnswer,
  *   host: String,
  * }
  */
@@ -248,72 +249,72 @@ const manageCreate = async (ws, args) =>
 		{
 			if (args.name)
 			{
-					if (args.projects)
+				if (args.projects)
+				{
+					if (!Array.isArray(args.projects) || args.projects.length === 0)
 					{
-						if (!Array.isArray(args.projects) || args.projects.length === 0)
-						{
-								ws.send(JSON.stringify({ success: false, message: "projects are required" }));
-						}
-						if (!( await verifyProjectsExist(args.projects)))
-						{
-								ws.send(JSON.stringify({ success: false, message: "there is an inexistant project" }));
-						}
-						const jwtDecoded = jwt.verify(args.token, SECRET);
-						if (sessionsUsers.has(ws))
-						{
-							const user = sessionsUsers.get(ws);
-							if (user.idGame == -1)
-							{
-								let conn;
-								try {
-									conn = await pool.getConnection();
-									const sqlQuery = "insert into tr_Game (name) values(?)";
-									const rows = await conn.query(sqlQuery, [args.name]);
-									user.idGame = rows.insertId;
-									openedGames.set(user.idGame, {
-										idGame: user.idGame,
-										users: {
-											[user.idUser]: user
-										},
-										projects: args.projects,
-										currentAnswer: null,
-										started: 0,
-										Qduration: 15,
-										host : user.idUser,
-									})
-									manageJoin(ws, {idGame: user.idGame, token: args.token });
-								} catch (err) {
-									console.error("Database error:", err);
-								} finally {
-									if (conn) conn.release();
-								}
-							}
-							else
-								ws.send(JSON.stringify({error: "user already in a game"}));
-						}
+						ws.send(JSON.stringify({ success: false, message: "projects are required" }));
 					}
-					else	
-						ws.send(JSON.stringify({error: "projects are required"}));
+					if (!( await verifyProjectsExist(args.projects)))
+					{
+						ws.send(JSON.stringify({ success: false, message: "there is an inexistant project" }));
+					}
+					const jwtDecoded = jwt.verify(args.token, SECRET);
+					if (sessionsUsers.has(ws))
+					{
+						const user = sessionsUsers.get(ws);
+						if (user.idGame == -1)
+						{
+							let conn;
+							try {
+								conn = await pool.getConnection();
+								const sqlQuery = "insert into tr_Game (name) values(?)";
+								const rows = await conn.query(sqlQuery, [args.name]);
+								user.idGame = rows.insertId;
+								openedGames.set(user.idGame, {
+									idGame: user.idGame,
+									users: {
+										[user.idUser]: user
+									},
+									projects: args.projects,
+									currentAnswer: null,
+									started: 0,
+									Qduration: 15,
+									host : user.idUser,
+								})
+								manageJoin(ws, {idGame: user.idGame, token: args.token });
+							} catch (err) {
+								console.error("Database error:", err);
+							} finally {
+								if (conn) conn.release();
+							}
+						}
+						else
+							ws.send(JSON.stringify({error: "user already in a game"}));
+					}
 				}
-				else
-					ws.send(JSON.stringify({error: "duration required or too short"}));
+				else	
+					ws.send(JSON.stringify({error: "projects are required"}));
 			}
 			else
-				ws.send(JSON.stringify({error: "name is required"}));
+				ws.send(JSON.stringify({error: "duration required or too short"}));
 		}
 		else
-			ws.send(JSON.stringify({error: "idGame is required"}));
+			ws.send(JSON.stringify({error: "name is required"}));
 	}
 	else
-		ws.send(JSON.stringify({error: "token is needed"}));
+		ws.send(JSON.stringify({error: "idGame is required"}));
+}
+else
+	ws.send(JSON.stringify({error: "token is needed"}));
 }
 
-function shuffleProjects(&game) {
-    for (let i = game.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [game[i], game[j]] = [game[j], game[i]];
-    }
-    return array;
+function shuffleProjects(game) {
+	for (let i = game.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[game[i], game[j]] = [game[j], game[i]];
+	}
+	return array;
 }
 const manageStart = (ws, args) =>
 {
@@ -370,15 +371,92 @@ const getActions =
 		'start':manageStart
 	};
 
+
+function	allAnswered(game)
+{
+	const gameUsers = Object.values(game.users);
+	//(iterator like) but anUser is an element of gameUsers
+	for (let anUser of gameUsers)
+	{
+		if (anUser.hasAnswered == 0)
+			return false;
+	}
+	return true;
+}
+
 async function startQuestion(game)
 {
 	if (game.projects.length != 0)
 	{
-		const file = path.join(__dirname, game.projects[0].link);
-		const code = await fs.readFile(file, 'utf-8');
+		const file = path.join(__dirname, game.projects[game.projects.length - 1].link);
+		const code = await fs.readFile(file, 'utf-8').split('\n');
+		let	index = code.length/2;
+		let line = code[index];
 		game.currentAnswer = game.projects[0].link;
-		const inerval = setInterval(() => {
-        }, 1000);
+		game.Qduration = 0;
+		const gameUsers = Object.values(game.users);
+		for (let anUser of gameUsers)
+		{
+			anUser.hasAnswered = 0;
+		}
+		const interval = setInterval(() => {
+			const gameUsers = Object.values(game.users);
+			//(iterator like) but anUser is an element of gameUsers
+			for (let anUser of gameUsers)
+			{
+				anUser.ws.send(JSON.stringify({
+					action: "timerUpdate", // client should -1 the timer for this one
+					idGame: user.idGame,
+					question: line,
+					index: index
+				}));
+			}
+			game.Qduration += 1;
+			let	index = Math.floor(Math.random * (code.length));
+			let line = code[index];
+			if (allAnswered(game) || Qduration == 15)
+			{
+				game.started = 0;
+				clearInterval(interval);
+				setTimeout(() => {
+
+					for (let anUser of gameUsers)
+					{
+						anUser.ws.send(JSON.stringify({
+							action: "answer", 
+							idGame: user.idGame,
+							answer: game.currentAnswer,
+						}));
+					}, 2000);
+				game.projects.pop();
+				startQuestion(game);
+			}
+			}, 1000);
+		}
+	}
+	else
+	{
+		const gameUsers = Object.values(game.users);
+		let winner = null;
+		for (let anUser of gameUsers)
+		{
+			if (winner)
+			{
+				if (winner.score < anUser.score)
+					winner = anUser;
+			}
+			else
+				winner = anUser;
+		}
+		for (let anUser of gameUsers)
+		{
+			anUser.ws.send(JSON.stringify({
+				action: "winner",
+				idGame: user.idGame,
+				winner: winner
+			}));
+
+		}
 	}
 }
 module.exports = getActions;
