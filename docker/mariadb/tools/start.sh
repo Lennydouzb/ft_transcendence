@@ -23,7 +23,7 @@ CREATE TABLE tr_User(
    UNIQUE(mail)
 );
 
-CREATE TABLE tr_Friends(
+CREATE TABLE tr_Friend(
 	idUser INT,
 	idUser1 INT,
 	PRIMARY KEY (idUser,idUser1),

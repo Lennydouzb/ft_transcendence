@@ -202,7 +202,7 @@ const manageAnswer = (ws, args) =>
 		{
 			if (game.currentAnswer == args.answer)
 			{
-				let scoreCalc = 100 / (1 + k * game.Qduration);
+				let scoreCalc = 15 - game.Qduration;
 				scoreCalc = Math.round(scoreCalc);
 				user.score += scoreCalc;
 				user.hasAnswered = 1;
@@ -290,31 +290,31 @@ const manageCreate = async (ws, args) =>
 							}
 						}
 						else
-							ws.send(JSON.stringify({error: "user already in a game"}));
+							ws.send(JSON.stringify({error: "user not in a game"}));
 					}
+					else
+						ws.send(JSON.stringify({error: "User doesnt exist"}));
 				}
-				else	
+				else
 					ws.send(JSON.stringify({error: "projects are required"}));
 			}
 			else
-				ws.send(JSON.stringify({error: "duration required or too short"}));
+				ws.send(JSON.stringify({error: "name is required"}));
 		}
 		else
-			ws.send(JSON.stringify({error: "name is required"}));
+			ws.send(JSON.stringify({error: "idGame is required"}));
 	}
 	else
-		ws.send(JSON.stringify({error: "idGame is required"}));
+		ws.send(JSON.stringify({error: "token is needed"}));
 }
-else
-	ws.send(JSON.stringify({error: "token is needed"}));
-}
+
 
 function shuffleProjects(game) {
 	for (let i = game.length - 1; i > 0; i--) {
 		const j = Math.floor(Math.random() * (i + 1));
 		[game[i], game[j]] = [game[j], game[i]];
 	}
-	return array;
+	return game;
 }
 const manageStart = (ws, args) =>
 {
@@ -412,7 +412,7 @@ async function startQuestion(game)
 				}));
 			}
 			game.Qduration += 1;
-			let	index = Math.floor(Math.random * (code.length));
+			let	index = Math.floor(Math.random() * (code.length));
 			let line = code[index];
 			if (allAnswered(game) || Qduration == 15)
 			{

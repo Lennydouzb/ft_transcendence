@@ -16,7 +16,7 @@ const upload = multer({ dest: 'uploads/' });
 const salt = 10;
 const app = express();
 const server = http.createServer(app);
-const ws = new WebSocket.Server({server});
+const ws = new websocket.Server({server});
 const SECRET = process.env.SECRET; 
 //this is to read json
 app.use(express.json());
