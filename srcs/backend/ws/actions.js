@@ -122,7 +122,7 @@ const manageJoin = (ws, args) =>
 	user.ws.send(JSON.stringify({action: 'selfjoin', idGame: user.idGame, gameUsers}));
 };
 
-const manageDisconnect = (ws, args) =>
+const manageDisconnect = (ws) =>
 {
 	if (sessionsUsers.has(ws))
 	{
@@ -147,7 +147,7 @@ const manageDisconnect = (ws, args) =>
 					for (let anUser of gameUsers)
 					{
 						anUser.ws.send(JSON.stringify({
-							action: "close",
+							action: "destroyed",
 							idGame: user.idGame,
 							message: "Host left",
 						}));
@@ -498,4 +498,8 @@ async function startQuestion(game)
 		}
 	}
 }
-module.exports = getActions;
+module.exports = 
+	{
+		getActions,
+		manageDisconnect
+	};

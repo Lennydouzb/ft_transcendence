@@ -1,12 +1,12 @@
 const express = require('express');
 const mariadb = require('mariadb');
 const websocket = require('ws');
+const {getActions, manageDisconnect} = require('./ws/actions');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const wsFunc = require('./ws/function');
 const http = require('http');
 BigInt.prototype.toJSON = function ()
 {
@@ -655,6 +655,27 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 */
 
 ws.on('connection', (ws) => {
+	ws.on('close', () => {
+		manageDisconnect(ws);
+	})
+	ws.on('message', (message) => {
+		try
+		{
+			const args = JSON.parse(mesage);
+			if (args.action && getActions[args.action])
+			{
+				getActions[args.action](ws, args);
+			}
+			else
+			{
+				ws.send(JSON.stringify({ error: "action doesn't exist" }));
+			}
+		}catch(err)
+		{
+			ws.send(JSON.stringify({ error: "Format de message invalide" }));
+		}
+	})
+	const args = 
 });
 //start the server
 server.listen(PORT, () => {
