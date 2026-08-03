@@ -122,6 +122,43 @@ const manageJoin = (ws, args) =>
 	user.ws.send(JSON.stringify({action: 'selfjoin', idGame: user.idGame, gameUsers}));
 };
 
+const manageDisconnect = (ws, args) =>
+{
+	if (sessionsUsers.has(ws))
+	{
+		user = sessionsUsers.get(ws);
+		if (user.idGame != -1 && openedGames.has(user.idGame))
+		{
+			delete openedGames.get(user.idGame)[user.idUser];
+			const gameUsers = Object.values(game.users);
+			//(iterator like) but anUser is an element of gameUsers
+			for (let anUser of gameUsers)
+			{
+				anUser.ws.send(JSON.stringify({
+					action: "leave",
+					idGame: user.idGame,
+					message: "Disconnected",
+					idUser: user.idUser,
+					name: user.name
+				}));
+				if (Object.keys(game.users).length === 0) {
+					openedGames.delete(user.idGame);
+				} else if (game.host === user.idUser) {
+					for (let anUser of gameUsers)
+					{
+						anUser.ws.send(JSON.stringify({
+							action: "close",
+							idGame: user.idGame,
+							message: "Host left",
+						}));
+						openedGames.delete(user.idGame);
+					}
+				}
+
+			}
+		}
+	}
+}
 const manageMsg = (ws, args) => 
 {
 	if (!args.token)
@@ -368,7 +405,8 @@ const getActions =
 		'answer': manageAnswer,
 		'create': manageCreate,
 		'auth' : manageAuth,
-		'start':manageStart
+		'start':manageStart,
+		'disconnect': manageDisconnect
 	};
 
 
