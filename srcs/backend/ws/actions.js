@@ -157,6 +157,7 @@ const manageDisconnect = (ws, args) =>
 
 			}
 		}
+		sessionUsers.delete(ws);
 	}
 }
 const manageMsg = (ws, args) => 
