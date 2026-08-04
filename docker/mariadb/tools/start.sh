@@ -12,55 +12,41 @@ mariadb -e "FLUSH PRIVILEGES;"
 mariadb -u $DB_USER -p${DB_PASSWORD} ${DB_NAME} -e "
 
 CREATE TABLE tr_User(
-   idUser INT AUTO_INCREMENT,
-   mail VARCHAR(50),
-   password CHAR(60),
+   idUser INT,
    name VARCHAR(50),
-   profile_picture VARCHAR(50),
+   mail VARCHAR(50) NOT NULL,
+   password VARCHAR(60) NOT NULL,
+   profilePicture VARCHAR(50),
    scoreTotal INT,
-   totalWin	INT,
    PRIMARY KEY(idUser),
    UNIQUE(mail)
 );
 
+CREATE TABLE tr_Message(
+   idMessage VARCHAR(50),
+   content VARCHAR(100) NOT NULL,
+   sendDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+   idUser INT NOT NULL,
+   PRIMARY KEY(idMessage),
+   FOREIGN KEY(idUser) REFERENCES tr_User(idUser)
+);
+
 CREATE TABLE tr_Friend(
-	idUser INT,
-	idUser1 INT,
-	PRIMARY KEY (idUser,idUser1),
-	FOREIGN KEY (idUser) REFERENCES tr_User(idUser),
-	FOREIGN KEY (idUser1) REFERENCES tr_User(idUser)
-);
-
-CREATE TABLE tr_Game(
-   idGame INT AUTO_INCREMENT,
-   name VARCHAR(50),
-   PRIMARY KEY(idGame)
-);
-
-CREATE TABLE tr_Project(
-   idProject INT AUTO_INCREMENT,
-   name VARCHAR(50),
-   PRIMARY KEY(idProject)
-);
-
-CREATE TABLE tr_Participate(
    idUser INT,
-   idGame INT,
-   PRIMARY KEY(idUser, idGame),
+   idUser_1 INT,
+   PRIMARY KEY(idUser, idUser_1),
    FOREIGN KEY(idUser) REFERENCES tr_User(idUser),
-   FOREIGN KEY(idGame) REFERENCES tr_Game(idGame)
+   FOREIGN KEY(idUser_1) REFERENCES tr_User(idUser)
 );
 
-CREATE TABLE tr_Question(
-   idGame INT,
-   idProject INT,
-   PRIMARY KEY(idGame, idProject),
-   FOREIGN KEY(idGame) REFERENCES tr_Game(idGame),
-   FOREIGN KEY(idProject) REFERENCES tr_Project(idProject)
-);
-
-insert into tr_Project (name) values ('libft'), ('ft_printf'), ('get_next_line'), ('fdf'), ('so_long'), ('fract-ol'), ('minitalk'), ('pipex'), ('push_swap'), ('minishell'), ('philosophers'), ('netpractice'), ('cub3d'), ('minirt');
-insert into tr_Project (name) values ('cpp00'),('cpp01'),('cpp02'),('cpp03'),('cpp04'),('cpp05'),('cpp06'),('cpp07'),('cpp08'),('cpp09');
-insert into tr_Project (name) values ('inception'), ('ft_irc'), ('webserv'), ('ft_transcendence');"
+CREATE TABLE tr_Chat(
+   idUser INT,
+   idUser_1 INT,
+   idMessage VARCHAR(50),
+   PRIMARY KEY(idUser, idUser_1, idMessage),
+   FOREIGN KEY(idUser) REFERENCES tr_User(idUser),
+   FOREIGN KEY(idUser_1) REFERENCES tr_User(idUser),
+   FOREIGN KEY(idMessage) REFERENCES tr_Message(idMessage)
+);"
 mysqladmin -u root shutdown
 exec mysqld --user=mysql

@@ -50,7 +50,6 @@ app.get('/api/test', (req, res) => {
 	res.json({ success: true, message: "Backend running"});
 });
 
-// Route 2 : Test de la connexion à MariaDB
 app.get('/api/test-db', async (req, res) => {
 	let conn;
 	try {
@@ -72,121 +71,90 @@ app.get('/api/test-db', async (req, res) => {
 		if (conn) conn.release();
 	}
 });
+/*
+ *this should return something like this
+ {
+ idMessage,
+ content,
+ sendDate,
+ idUser,
+ idUser_1
+ }
+ one of the two id is the user who made the request
+
+this endpoint should be called to load messages on connection
+*/
+
+
+/*every next api return object properties are based on the request entries*/ 
+app.post('/api/getConvos', async (req, res) => {
+	const fulltoken = req.headers.authorization;
+	if (!fulltoken || !fulltoken.startsWith("Bearer "))
+	{
+		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
+	}
+	if (fulltoken.split(' ').length != 2)
+	{
+		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
+	}
+	const token = fulltoken.split(' ')[1];
+	try{
+		const jwtDecoded = jwt.verify(token, SECRET);
+		let conn;
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "select tr_Message.idMessage, content, sendDate, tr_Chat.idUser, tr_Chat.idUser_1 from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?";
+			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser, jwtDecoded.idUser]);
+			res.status(200).json({success: true});
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	}catch(err)
+	{
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
+	}
+
+});
+
+
+app.get('/api/getUser', async (req, res) => {
+	const { idUser} = req.body;
+	if (!idUser)
+		return res.status(400).json({ success: false, message: "idUser is required" });
+	let conn;
+	try {
+		conn = await pool.getConnection();
+		const sqlQuery = "SELECT idUser, name, mail, profilePicture, scoreTotal from tr_User where idUser = ?");
+		const rows = await conn.query(sqlQuery, [idUser]);
+		res.json(rows);	
+	} catch (err) {
+		console.error("Database error:", err);
+		res.status(500).json({ 
+			success: false, 
+			message: 'cant connect', 
+			error: err.message 
+		});
+	} finally {
+		if (conn) conn.release();
+	}
+});
 
 app.get('/api/users', async (req, res) => {
 	let conn;
 	try {
 		conn = await pool.getConnection();
-		const rows = await conn.query("SELECT idUser, name from tr_User");
+		const rows = await conn.query("SELECT idUser, name, mail, profilePicture, scoreTotal from tr_User");
 		res.json(rows);	
-	} catch (err) {
-		console.error("Database error:", err);
-		res.status(500).json({ 
-			success: false, 
-			message: 'cant connect', 
-			error: err.message 
-		});
-	} finally {
-		if (conn) conn.release();
-	}
-});
-
-app.get('/api/games', async (req, res) => {
-	let conn;
-	try {
-		conn = await pool.getConnection();
-		const rows = await conn.query("SELECT * from tr_Game");
-		res.json(rows);	
-	} catch (err) {
-		console.error("Database error:", err);
-		res.status(500).json({ 
-			success: false, 
-			message: 'cant connect', 
-			error: err.message 
-		});
-	} finally {
-		if (conn) conn.release();
-	}
-});
-
-app.get('/api/projects', async (req, res) => {
-	let conn;
-	try {
-		conn = await pool.getConnection();
-		const rows = await conn.query("SELECT * from tr_Project");
-		res.json(rows);	
-	} catch (err) {
-		console.error("Database error:", err);
-		res.status(500).json({ 
-			success: false, 
-			message: 'cant connect', 
-			error: err.message 
-		});
-	} finally {
-		if (conn) conn.release();
-	}
-});
-
-app.post('/api/gameParticipants', async (req, res) => {
-	const { idGame } = req.body;
-
-	if (!idGame) {
-		return res.status(400).json({ success: false, message: "idGame is required" });
-	}
-	let conn;
-	try {
-		conn = await pool.getConnection();
-		const sqlQuery = "SELECT * FROM tr_Participate WHERE idGame = ?";
-		const rows = await conn.query(sqlQuery, [idGame]);
-		res.json(rows);    
-	} catch (err) {
-		console.error("Database error:", err);
-		res.status(500).json({ 
-			success: false, 
-			message: 'cant connect', 
-			error: err.message 
-		});
-	} finally {
-		if (conn) conn.release();
-	}
-});
-
-app.post('/api/userGames', async (req, res) => {
-	const { idUser } = req.body;
-
-	if (!idUser) {
-		return res.status(400).json({ success: false, message: "idUser is required" });
-	}
-	let conn;
-	try {
-		conn = await pool.getConnection();
-		const sqlQuery = "SELECT * FROM tr_Participate WHERE idUser = ?";
-		const rows = await conn.query(sqlQuery, [idUser]);
-		res.json(rows);    
-	} catch (err) {
-		console.error("Database error:", err);
-		res.status(500).json({ 
-			success: false, 
-			message: 'cant connect', 
-			error: err.message 
-		});
-	} finally {
-		if (conn) conn.release();
-	}
-});
-
-app.post('/api/gameProjects', async (req, res) => {
-	const { idGame} = req.body;
-
-	if (!idGame) {
-		return res.status(400).json({ success: false, message: "idGame is required" });
-	}
-	let conn;
-	try {
-		conn = await pool.getConnection();
-		const sqlQuery = "SELECT * FROM tr_Question WHERE idGame = ?";
-		const rows = await conn.query(sqlQuery, [idGame]);
-		res.json(rows);    
 	} catch (err) {
 		console.error("Database error:", err);
 		res.status(500).json({ 
@@ -222,7 +190,7 @@ app.post('/api/createUser', async (req, res) => {
 	try {
 		conn = await pool.getConnection();
 		const hashedPass = await bcrypt.hash(password, salt);
-		const sqlQuery = "insert into tr_User (mail, password, name, scoreTotal, totalWin)values (?, ?, ?, 0, 0)";
+		const sqlQuery = "insert into tr_User (mail, password, name, scoreTotal)values (?, ?, ?, 0)";
 		const rows = await conn.query(sqlQuery, [mail, hashedPass, nameA]);
 		const token = jwt.sign(
 			{ 
@@ -288,205 +256,6 @@ app.post('/api/login', async (req, res) => {
 	}
 });
 
-
-/*app.post('/api/createProject', async (req, res) => {
-	const {link, name} = req.body;
-	const fulltoken = req.headers.authorization;
-	if (!fulltoken || !fulltoken.startsWith("Bearer "))
-	{
-		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
-	}
-	if (fulltoken.split(' ').length != 2)
-	{
-		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
-	}
-	const token = fulltoken.split(' ')[1];
-
-	if (!link) {
-		return res.status(400).json({ success: false, message: "github link is required" });
-	}
-	if (!name) {
-		return res.status(400).json({ success: false, message: "name is required" });
-	}
-	if (!checkLinkValidity(link))
-	{
-		return res.status(400).json({ success: false, message: "this repo doesnt exist ir isn't accessible" });
-	}
-	let conn;
-	try{
-		const jwtDecoded = jwt.verify(token, SECRET);
-		try {
-			conn = await pool.getConnection();
-			const sqlQuery = "insert into tr_Project (github_link, name) values(?, ?)";
-			const rows = await conn.query(sqlQuery, [link, name]);
-			res.status(200).json({success: true, idProject : rows.insertId});
-		} catch (err) {
-			console.error("Database error:", err);
-			res.status(500).json({ 
-				success: false, 
-				message: 'cant connect', 
-				error: err.message 
-			});
-		} finally {
-			if (conn) conn.release();
-		}
-	}catch(err)
-	{
-		if (err.name === "TokenExpiredError")
-			return res.status(401).json({ success: false, message: "expired jwt" });
-		else
-			return res.status(403).json({ success: false, message: "invalid jwt" });
-	}
-});*/
-/* this route might desync with ws
-app.post('/api/createGame', async (req, res) => {
-	const {name} = req.body;
-	const fulltoken = req.headers.authorization;
-	if (!fulltoken || !fulltoken.startsWith("Bearer "))
-	{
-		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
-	}
-	if (fulltoken.split(' ').length != 2)
-	{
-		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
-	}
-	const token = fulltoken.split(' ')[1];
-	if (!name) {
-		return res.status(400).json({ success: false, message: "name is required" });
-	}
-	let conn;
-	try{
-		const jwtDecoded = jwt.verify(token, SECRET);
-		try {
-			conn = await pool.getConnection();
-			const sqlQuery = "insert into tr_Game (name) values(?)";
-			const rows = await conn.query(sqlQuery, [name]);
-			res.status(200).json({success: true, idGame: rows.insertId});
-		} catch (err) {
-			console.error("Database error:", err);
-			res.status(500).json({ 
-				success: false, 
-				message: 'cant connect', 
-				error: err.message 
-			});
-		} finally {
-			if (conn) conn.release();
-		}
-	}catch(err)
-	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
-	}
-});
-*/
-/*this route might desync with websocket but i might use the code later
- * app.post('/api/createQuestions', async (req, res) => {
-	const {projects, idGame} = req.body;
-	const fulltoken = req.headers.authorization;
-	if (!fulltoken || !fulltoken.startsWith("Bearer "))
-	{
-		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
-	}
-	if (fulltoken.split(' ').length != 2)
-	{
-		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
-	}
-	const token = fulltoken.split(' ')[1];
-
-	if (!projects) {
-		return res.status(400).json({ success: false, message: "projects are required" });
-	}
-	if (!Array.isArray(projects) || projects.length === 0)
-	{
-		return res.status(400).json({ success: false, message: "projects are required" });
-	}
-	if (!idGame) {
-		return res.status(400).json({ success: false, message: "idGame is required" });
-	}
-	let conn;
-	try{
-		const jwtDecoded = jwt.verify(token, SECRET);
-		try {
-			conn = await pool.getConnection();
-			const sqlQuery = "insert ignore into tr_Question (idGame, idProject) values(?, ?)";
-			//for each attribute push an object into a tab (it associate idGame to each project id);
-			const values = projects.map(idProject => [
-				idGame,
-				idProject
-			]);
-			// do all
-			const rows = await conn.batch(sqlQuery, values);
-			res.status(200).json({success: true});
-		} catch (err) {
-			console.error("Database error:", err);
-			res.status(500).json({ 
-				success: false, 
-				message: 'cant connect', 
-				error: err.message 
-			});
-		} finally {
-			if (conn) conn.release();
-		}
-	}catch(err)
-	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
-	}
-});
-*/
-
-/*this route might desync with websocket but i might use the code later
-app.post('/api/createParticipants', async (req, res) => {
-	const {users, idGame} = req.body;
-	const fulltoken = req.headers.authorization;
-	if (!fulltoken || !fulltoken.startsWith("Bearer "))
-	{
-		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
-	}
-	if (fulltoken.split(' ').length != 2)
-	{
-		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
-	}
-	const token = fulltoken.split(' ')[1];
-
-	if (!users) {
-		return res.status(400).json({ success: false, message: "users are required" });
-	}
-	if (!Array.isArray(users) || users.length === 0)
-	{
-		return res.status(400).json({ success: false, message: "users are required" });
-	}
-	if (!idGame) {
-		return res.status(400).json({ success: false, message: "idGame is required" });
-	}
-	let conn;
-	try{
-		const jwtDecoded = jwt.verify(token, SECRET);
-		try {
-			conn = await pool.getConnection();
-			const sqlQuery = "insert ignore into tr_Participate values(?, ?)";
-			//for each attribute push an object into a tab (it associate idGame to each project id);
-			const values = users.map(idUser => [
-				idUser,
-				idGame
-			]);
-			// do all
-			const rows = await conn.batch(sqlQuery, values);
-			res.status(200).json({success: true});
-		} catch (err) {
-			console.error("Database error:", err);
-			res.status(500).json({ 
-				success: false, 
-				message: 'cant connect', 
-				error: err.message 
-			});
-		} finally {
-			if (conn) conn.release();
-		}
-	}catch(err)
-	{
-		return res.status(401).json({ success: false, message: "invalid or expired jwt" });
-	}
-});
-*/
 /*
  * ------------------------------------------------------
  * -                     Modfying                       -
@@ -557,19 +326,16 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
 		let conn;
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "select profile_picture from tr_User where idUser = ?";
+			const sqlQuery = "select profilePicture from tr_User where idUser = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-			if (rows.length != 0 && rows[0].profile_picture)
+			if (rows.length != 0 && rows[0].profilePicture)
 			{
-				const imgPath = path.join(__dirname, "uploads", rows[0].profile_picture);
+				const imgPath = path.join(__dirname, "uploads/", rows[0].profilePicture);
 				try{
 					fs.unlinkSync(imgPath);
-				}catch (err)
-				{
-					return res.status(401).json({success: false, error: "Seems like there was a problem"});
-				}
+				}catch (err){}
 			}
-			const updateQuery = "UPDATE tr_User SET profile_picture = ? WHERE idUser = ?";
+			const updateQuery = "UPDATE tr_User SET profilePicture = ? WHERE idUser = ?";
 			await conn.query(updateQuery, [req.file.filename, jwtDecoded.idUser]);
 			res.json({success: true, message: "Profile pic was changed"});
 		} catch (err) {
@@ -617,15 +383,15 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 		let conn;
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "select profile_picture from tr_User where idUser = ?";
+			const sqlQuery = "select profilePicture from tr_User where idUser = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-			if (rows.length == 0 || !rows[0].profile_picture)
+			if (rows.length == 0 || !rows[0].profilePicture)
 			{
 				return res.json({success: true, message: "Profile pic is unset"});
 			}
-			const updateQuery = "UPDATE tr_User SET profile_picture = NULL WHERE idUser = ?";
+			const updateQuery = "UPDATE tr_User SET profilePicture = NULL WHERE idUser = ?";
 			await conn.query(updateQuery, [jwtDecoded.idUser]);
-			const imgPath = path.join(__dirname, "uploads", rows[0].profile_picture);
+			const imgPath = path.join(__dirname, "uploads", rows[0].profilePicture);
 			if (fs.existsSync(imgPath)) {
 				fs.unlinkSync(imgPath);
 			}
@@ -654,17 +420,23 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
  *---------------------------------
 */
 
+ws.on('upgrade', (request, ws, head) =>{
+
+});
+ws.on('close', () => {
+	manageDisconnect(ws);
+})
+
 ws.on('connection', (ws) => {
-	ws.on('close', () => {
-		manageDisconnect(ws);
-	})
-	ws.on('message', (message) => {
-		try
+	ws.send(JSON.stringify({message:"Connected successfully"}));
+});
+ws.on('message', (message) => {
+	try
+	{
+		const args = JSON.parse(mesage);
+		if (args.action && getActions[args.action])
 		{
-			const args = JSON.parse(mesage);
-			if (args.action && getActions[args.action])
-			{
-				getActions[args.action](ws, args);
+			getActions[args.action](ws, args);
 			}
 			else
 			{
@@ -676,7 +448,6 @@ ws.on('connection', (ws) => {
 		}
 	})
 	const args = 
-});
 //start the server
 server.listen(PORT, () => {
 	console.log("Server is launched");
