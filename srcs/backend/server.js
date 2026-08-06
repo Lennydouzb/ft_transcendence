@@ -134,7 +134,7 @@ app.get('/api/getUser', async (req, res) => {
 	let conn;
 	try {
 		conn = await pool.getConnection();
-		const sqlQuery = "SELECT idUser, name, mail, profilePicture, scoreTotal from tr_User where idUser = ?");
+		const sqlQuery = "SELECT idUser, name, mail, profilePicture, scoreTotal from tr_User where idUser = ?";
 		const rows = await conn.query(sqlQuery, [idUser]);
 		res.json(rows);	
 	} catch (err) {
