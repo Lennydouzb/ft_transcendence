@@ -1,6 +1,7 @@
-LOGIN=ldesboui
+LOGIN=miniplop
 ORIGIN=/home/$(LOGIN)/data
 MANDA_DIR_MARIA = $(ORIGIN)/mariadb
+export MARIADB_DATA_DIR := $(MANDA_DIR_MARIA)
 
 all: start
 
