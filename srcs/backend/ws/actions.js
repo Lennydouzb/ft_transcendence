@@ -131,7 +131,7 @@ const manageAuth = (ws, args) =>
 
 }
 
-const manageClick = async (wa, args)
+const manageClick = async (wa, args) =>
 {
 	if (!args.token)
 		return;	
