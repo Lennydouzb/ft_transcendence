@@ -32,10 +32,10 @@ const manageDisconnect = (ws) =>
 {
 	if (sessionsUsers.has(ws))
 	{
-		user = sessionsUsers.get(ws);
+		const user = sessionsUsers.get(ws);
 		sessionsUsers.delete(ws);
 		sessionsUsersId.delete(user.idUser);
-		for (let anUser of sessionsUsers)
+		for (const anUser of sessionsUsers.values())
 		{
 			anUser.ws.send(JSON.stringify({
 				action: "leave",
@@ -46,14 +46,14 @@ const manageDisconnect = (ws) =>
 	}
 }
 
-const managePpChange = (ws, args)
+const managePpChange = (ws, args) =>
 {
 	if (!sessionsUsers.has(ws))
 		return;
 	const user = sessionsUsers.get(ws);
-	for (let anUser of sessionsUsers )
+	for (const anUser of sessionsUsers.values() )
 	{
-		anUser.ws.send(JSON.stringy({
+		anUser.ws.send(JSON.stringify({
 			action: "ppChange",
 			idUser: user.idUser
 		}))
@@ -75,9 +75,9 @@ const manageMsg = (ws, args) =>
 		ws.send(JSON.stringify({error: "no idUser, can't know receiver"}));
 		return;
 	}
-	if (!sessionsUsersId.has(idUser))
+	if (!sessionsUsersId.has(args.idUser))
 		return;
-	const anUser = sessionsUsers.get(sessionsUsersId.get(idUser).ws)
+	const anUser = sessionsUsers.get(sessionsUsersId.get(args.idUser))
 	anUser.ws.send(JSON.stringify({
 		action: "msg",
 		message: args.message,
@@ -92,23 +92,29 @@ const manageAuth = (ws, args) =>
 {
 	if (!args.token)
 		return;	
-	const fulltoken = token;
+	const fulltoken = args.token;
 	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 		return;
-	if (fulltoken.split(' ').length != 2)
+	const parts = fulltoken.split(' ');
+	if (parts.length !== 2)
 		return;
-	const token = fulltoken.split(' ')[1];
+	const token = parts[1];
 	if (!token)
 		return;
-	const jwtDecoded = jwt.verify(token, SECRET);
-	sessionsUsers.set(ws, {
-		idUser: jwtDecoded.idUser,
-		name: jwtDecoded.name,
-		mail: jwtDecoded.mail,
-		ws: ws
-		token: token
-	});
-	sessionsUsersId.set(idUser, ws);
+	try {
+		const jwtDecoded = jwt.verify(token, SECRET);
+		sessionsUsers.set(ws, {
+			idUser: jwtDecoded.idUser,
+			name: jwtDecoded.name,
+			mail: jwtDecoded.mail,
+			ws,
+			token
+		});
+		sessionsUsersId.set(jwtDecoded.idUser, ws);
+	} catch (err) {
+		ws.close(4001, "Invalid token");
+	}
+	
 }
 
 const getActions =
