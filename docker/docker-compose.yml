@@ -16,6 +16,9 @@ services:
     networks: 
       - ft_transcendence
     restart: on-failure
+    depends_on:
+      - frontend
+      - backend
     env_file: .env
     
   frontend:
@@ -24,7 +27,7 @@ services:
       context: ..
       dockerfile: ./docker/frontend/Dockerfile
     depends_on:
-      - mariadb
+      - backend
     ports:
       - "3000:3000"
     networks:
