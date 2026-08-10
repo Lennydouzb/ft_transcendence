@@ -1,7 +1,7 @@
 const express = require('express');
 const mariadb = require('mariadb');
 const websocket = require('ws');
-const {getActions, manageDisconnect} = require('./ws/actions');
+const {getActions, manageDisconnect, startRandomRenderLoop} = require('./ws/actions');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
@@ -20,6 +20,7 @@ const ws = new websocket.Server({server});
 const SECRET = process.env.SECRET; 
 //this is to read json
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const PORT = 8080;
 
 const pool = mariadb.createPool({
@@ -45,7 +46,7 @@ app.use((req, res, next) => {
  * -----------------------------------------------------------------------
  * -			api for retrieving infos (no need to be logged)          -
  * -----------------------------------------------------------------------
-*/
+ */
 app.get('/api/test', (req, res) => {
 	res.json({ success: true, message: "Backend running"});
 });
@@ -71,6 +72,103 @@ app.get('/api/test-db', async (req, res) => {
 		if (conn) conn.release();
 	}
 });
+
+
+app.post('/api/friends', async (req, res) => {
+	const fulltoken = req.headers.authorization;
+	if (!fulltoken || !fulltoken.startsWith("Bearer ")) {
+		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
+	}
+	if (fulltoken.split(' ').length != 2) {
+		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
+	}
+	const token = fulltoken.split(' ')[1];
+	try {
+		const jwtDecoded = jwt.verify(token, SECRET);
+		let conn;
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = `
+				SELECT u.idUser, u.name, u.mail, u.profilePicture, u.scoreTotal
+				FROM tr_Friend f
+				JOIN tr_User u ON (f.idUser = u.idUser OR f.idUser_1 = u.idUser)
+				WHERE (f.idUser = ? OR f.idUser_1 = ?) AND u.idUser != ?
+				`;
+			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser, jwtDecoded.idUser, jwtDecoded.idUser]);			
+			res.status(200).json({ success: true, friends: rows });
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	} catch(err) {
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
+	}
+});
+
+app.post('/api/addFriend', async (req, res) => {
+	const { idUser } = req.body;
+	const fulltoken = req.headers.authorization;
+
+	if (!fulltoken || !fulltoken.startsWith("Bearer ")) {
+		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
+	}
+	if (fulltoken.split(' ').length != 2) {
+		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
+	}
+	if (!idUser) {
+		return res.status(400).json({ success: false, message: "idUser is required" });
+	}
+
+	const token = fulltoken.split(' ')[1];
+
+	try {
+		const jwtDecoded = jwt.verify(token, SECRET);
+		
+		if (jwtDecoded.idUser === idUser) {
+			return res.status(400).json({ success: false, message: "Cannot add yourself as a friend" });
+		}
+
+		let conn;
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "INSERT INTO tr_Friend (idUser, idUser_1) VALUES (?, ?)";
+			await conn.query(sqlQuery, [jwtDecoded.idUser, idUser]);			
+			res.status(200).json({ success: true, message: "Friend added successfully" });
+		} catch (err) {
+			console.error("Database error:", err);
+			if (err.code === 'ER_DUP_ENTRY') {
+				return res.status(409).json({
+					success: false,
+					message: 'You are already friends'
+				});
+			}
+			if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+				return res.status(404).json({ success: false, message: 'User does not exist' });
+			}
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	} catch(err) {
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
+	}
+});
 /*
  *this should return something like this
  {
@@ -84,8 +182,6 @@ app.get('/api/test-db', async (req, res) => {
 
 this endpoint should be called to load messages on connection
 */
-
-
 /*every next api return object properties are based on the request entries*/ 
 app.post('/api/getConvos', async (req, res) => {
 	const fulltoken = req.headers.authorization;
@@ -105,7 +201,7 @@ app.post('/api/getConvos', async (req, res) => {
 			conn = await pool.getConnection();
 			const sqlQuery = "select tr_Message.idMessage, content, sendDate, tr_Chat.idUser, tr_Chat.idUser_1 from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser, jwtDecoded.idUser]);
-			res.status(200).json({success: true});
+			res.status(200).json({success: true, convos: rows});
 		} catch (err) {
 			console.error("Database error:", err);
 			res.status(500).json({ 
@@ -127,7 +223,7 @@ app.post('/api/getConvos', async (req, res) => {
 });
 
 
-app.get('/api/getUser', async (req, res) => {
+app.post('/api/getUser', async (req, res) => {
 	const { idUser} = req.body;
 	if (!idUser)
 		return res.status(400).json({ success: false, message: "idUser is required" });
@@ -171,7 +267,7 @@ app.get('/api/users', async (req, res) => {
  * -----------------------------------------------------------------------
  * -			Api to log update and create infos                       -
  * -----------------------------------------------------------------------
-*/
+ */
 
 
 app.post('/api/createUser', async (req, res) => {
@@ -266,7 +362,7 @@ app.post('/api/login', async (req, res) => {
  * ------------------------------------------------------
  * -                     Modfying                       -
  * ------------------------------------------------------
-*/
+ */
 
 app.put('/api/updateUserName', async (req, res) => {
 	const { name } = req.body;
@@ -367,7 +463,10 @@ app.put('/api/updateUserImage/', upload.single('img'), async (req, res) => {
  * ------------------------------------------------------
  * -                     Deleting                       -
  * ------------------------------------------------------
-*/
+ */
+
+
+
 app.delete('/api/deleteUserImage/', async (req, res) => {
 	const fulltoken = req.headers.authorization;
 	if (!fulltoken || !fulltoken.startsWith("Bearer "))
@@ -420,15 +519,58 @@ app.delete('/api/deleteUserImage/', async (req, res) => {
 			return res.status(403).json({ success: false, message: "invalid jwt" })
 	}
 });
+
+
+app.delete('/api/removeFriend', async (req, res) => {
+	const { idUser } = req.body;
+	const fulltoken = req.headers.authorization;
+
+	if (!fulltoken || !fulltoken.startsWith("Bearer ")) {
+		return res.status(400).json({ success: false, message: "token is required and should start with 'Bearer '" });
+	}
+	if (fulltoken.split(' ').length != 2) {
+		return res.status(400).json({ success: false, message: "token should start with 'Bearer '" });
+	}
+	if (!idUser) {
+		return res.status(400).json({ success: false, message: "idUser is required" });
+	}
+	const token = fulltoken.split(' ')[1];
+
+	try {
+		const jwtDecoded = jwt.verify(token, SECRET);
+
+		let conn;
+		try {
+			conn = await pool.getConnection();
+			const sqlQuery = "DELETE FROM tr_Friend WHERE (idUser = ? AND idUser_1 = ?) OR (idUser = ? AND idUser_1 = ?)";
+			const result = await conn.query(sqlQuery, [jwtDecoded.idUser, idUser, idUser, jwtDecoded.idUser]);
+			if (result.affectedRows === 0) {
+				return res.status(404).json({ success: false, message: "Friendship not found" });
+			}
+			res.status(200).json({ success: true, message: "Friend removed successfully" });
+		} catch (err) {
+			console.error("Database error:", err);
+			res.status(500).json({ 
+				success: false, 
+				message: 'cant connect', 
+				error: err.message 
+			});
+		} finally {
+			if (conn) conn.release();
+		}
+	} catch(err) {
+		if (err.name === "TokenExpiredError")
+			return res.status(401).json({ success: false, message: "expired jwt" });
+		else
+			return res.status(403).json({ success: false, message: "invalid jwt" });
+	}
+});
 /*---------------------------------
  *							       
  *		WEBSOCKET
  *---------------------------------
-*/
+ */
 
-ws.on('upgrade', (request, ws, head) =>{
-
-});
 ws.on('close', () => {
 	manageDisconnect(ws);
 })
@@ -439,25 +581,26 @@ ws.on('connection', (ws) => {
 ws.on('message', (message) => {
 	try
 	{
-		const args = JSON.parse(mesage);
+		const args = JSON.parse(message);
 		if (args.action && getActions[args.action])
 		{
 			getActions[args.action](ws, args);
-			}
-			else
-			{
-				ws.send(JSON.stringify({ error: "action doesn't exist" }));
-			}
-		}catch(err)
-		{
-			ws.send(JSON.stringify({ error: "Format de message invalide" }));
 		}
-	})
-	const args = 
-//start the server
-server.listen(PORT, () => {
-	console.log("Server is launched");
-});
+		else
+		{
+			ws.send(JSON.stringify({ error: "action doesn't exist" }));
+		}
+	}catch(err)
+	{
+		ws.send(JSON.stringify({ error: "Format de message invalide" }));
+	}
+})
+const args = 
+	//start the server
+	server.listen(PORT, () => {
+		console.log("Server is launched");
+		startRandomRenderLoop();
+	});
 
 
 

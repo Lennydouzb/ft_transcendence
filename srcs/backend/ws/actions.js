@@ -13,7 +13,7 @@ const pool = mariadb.createPool({
 	connectionLimit: 5
 });
 
-const gameActive = 0;
+let gameActive = 0;
 /*
  * sessionsUsersId (map)
  * Key: idUser
@@ -61,30 +61,45 @@ const managePpChange = (ws, args) =>
 	}
 }
 
-const manageMsg = (ws, args) => 
-{
-	if (!sessionsUsers.has(ws))
-		return;
-	const user = sessionsUsers.get(ws);
-	if (!args.message)
-	{
-		ws.send(JSON.stringify({error: "no message"}));
-		return;
-	}
-	if (!args.idUser)
-	{
-		ws.send(JSON.stringify({error: "no idUser, can't know receiver"}));
-		return;
-	}
-	if (!sessionsUsersId.has(args.idUser))
-		return;
-	const anUser = sessionsUsers.get(sessionsUsersId.get(args.idUser))
-	anUser.ws.send(JSON.stringify({
-		action: "msg",
-		message: args.message,
-		idUser: user.idUser,
-		name: user.name
-	}));
+const manageMsg = async (ws, args) => {
+    if (!sessionsUsers.has(ws))
+        return;
+    const user = sessionsUsers.get(ws);
+    
+    if (!args.message) {
+        ws.send(JSON.stringify({error: "no message"}));
+        return;
+    }
+    if (args.message.length > 100)
+        return;
+    if (!args.idUser) {
+        ws.send(JSON.stringify({error: "no idUser, can't know receiver"}));
+        return;
+    }
+    
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        let sqlQuery = "insert into tr_Message (content, idUser) values (?, ?)";
+        let rows = await conn.query(sqlQuery, [args.message, user.idUser]);
+        
+        sqlQuery = "insert into tr_Chat (idUser, idUser_1, idMessage) values (?, ?, ?)";
+        await conn.query(sqlQuery, [user.idUser, args.idUser, rows.insertId]);
+        if (sessionsUsersId.has(args.idUser)) {
+            const anUser = sessionsUsers.get(sessionsUsersId.get(args.idUser));  
+            anUser.ws.send(JSON.stringify({
+                action: "msg",
+                message: args.message,
+                idUser: user.idUser,
+                name: user.name
+            }));
+        }
+    } catch (err) {
+        console.error("Database error:", err);
+        ws.send(JSON.stringify({success: false, message: "The database doesn't work"}));
+    } finally {
+        if (conn) conn.release();
+    }
 };
 
 const manageAuth = (ws, args) =>
@@ -136,11 +151,19 @@ const manageClick = (wa, args)
 			const user = sessionsUsers.get(ws);
 			if (gameActive == 1)
 			{
+				let conn;
 				try {
 					conn = await pool.getConnection();
 					const sqlQuery = "update tr_User set scoreTotal = scoreTotal + 100 where idUser = ? returning scoreTotal";
 					const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-					ws.send(JSON.stringify({success: true, scoreTotal: rows[0].scoreTotal));
+					for (const anUser of sessionsUsers.values() )
+					{
+						anUser.ws.send(JSON.stringify({
+							action: "unrender"
+						}))
+					}
+					ws.send(JSON.stringify({success: true, scoreTotal: rows[0].scoreTotal}));
+
 				} catch (err) {
 					console.error("Database error:", err);
 					ws.send(JSON.stringify({success: false, message: "The database didn't want you to win"}));
@@ -157,6 +180,25 @@ const manageClick = (wa, args)
 	}
 }
 
+const startRandomRenderLoop = () => {
+	const min = 5000;
+	const max = 15000;
+	const randomDelay = Math.floor(Math.random() * (max - min + 1)) + min;
+
+	setTimeout(() => {
+		for (const anUser of sessionsUsers.values()) {
+			anUser.ws.send(JSON.stringify({
+				action: "unrender"
+			}));
+
+			anUser.ws.send(JSON.stringify({
+				action: "render"
+			}));
+		}
+		startRandomRenderLoop();
+	}, randomDelay);
+};
+
 const getActions =
 	{
 		'msg': manageMsg,
@@ -169,5 +211,6 @@ const getActions =
 module.exports = 
 	{
 		getActions,
-		manageDisconnect
+		manageDisconnect,
+		startRandomRenderLoop
 	};

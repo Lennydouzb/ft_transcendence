@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ft_transcendence (42 school project): a Pong web app with user accounts, chat, and friends. Stack: Next.js frontend, a raw Express + `ws` backend, MariaDB, all reverse-proxied through nginx over TLS. Everything runs in Docker Compose; there is no way to run backend/db services outside containers since the backend always connects to a `mariadb` hostname.
+ft_transcendence (42 school project): a web app with user accounts, chat, and friends. Stack: Next.js frontend, a raw Express + `ws` backend, MariaDB, all reverse-proxied through nginx over TLS. Everything runs in Docker Compose; there is no way to run backend/db services outside containers since the backend always connects to a `mariadb` hostname.
 
 ## Running the project
 

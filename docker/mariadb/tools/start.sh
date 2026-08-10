@@ -12,7 +12,7 @@ mariadb -e "FLUSH PRIVILEGES;"
 mariadb -u $DB_USER -p${DB_PASSWORD} ${DB_NAME} -e "
 
 CREATE TABLE tr_User(
-   idUser INT,
+   idUser INT AUTO_INCREMENT,
    name VARCHAR(50),
    mail VARCHAR(50) NOT NULL,
    password VARCHAR(60) NOT NULL,
@@ -23,10 +23,9 @@ CREATE TABLE tr_User(
 );
 
 CREATE TABLE tr_Message(
-   idMessage VARCHAR(50),
+   idMessage INT AUTO_INCREMENT,
    content VARCHAR(100) NOT NULL,
    sendDate DATETIME DEFAULT CURRENT_TIMESTAMP,
-   idUser INT NOT NULL,
    PRIMARY KEY(idMessage),
    FOREIGN KEY(idUser) REFERENCES tr_User(idUser)
 );
@@ -42,7 +41,7 @@ CREATE TABLE tr_Friend(
 CREATE TABLE tr_Chat(
    idUser INT,
    idUser_1 INT,
-   idMessage VARCHAR(50),
+   idMessage INT,
    PRIMARY KEY(idUser, idUser_1, idMessage),
    FOREIGN KEY(idUser) REFERENCES tr_User(idUser),
    FOREIGN KEY(idUser_1) REFERENCES tr_User(idUser),
