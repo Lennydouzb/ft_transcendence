@@ -200,7 +200,7 @@ app.post('/api/createUser', async (req, res) => {
 			SECRET,
 			{expiresIn: "24h"}
 		);
-		res.json({success: true, token: token});    
+		res.json({success: true, token: token});
 	} catch (err) {
 		console.error("Database error:", err);
 		if (err.code === 'ER_DUP_ENTRY') {
@@ -208,6 +208,12 @@ app.post('/api/createUser', async (req, res) => {
 				success: false,
 				message: 'cet email est déjà utilisé'
 			});
+		}
+		res.status(500).json({
+			success: false,
+			message: 'cant connect',
+			error: err.message
+		});
 	} finally {
 		if (conn) conn.release();
 	}

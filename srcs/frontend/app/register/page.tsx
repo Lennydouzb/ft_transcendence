@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 
-export default function LoginPage() {
-	const { login } = useAuth();
+export default function RegisterPage() {
+	const { register } = useAuth();
 	const router = useRouter();
 
+	const [name, setName] = useState('');
 	const [mail, setMail] = useState('');
 	const [password, setPassword] = useState('');
 	const [error, setError] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export default function LoginPage() {
 		setError(null);
 		setSubmitting(true);
 		try {
-			await login(mail, password);
+			await register(name, mail, password);
 			router.push('/dashboard');
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Une erreur est survenue');
@@ -31,11 +32,22 @@ export default function LoginPage() {
 	return (
 		<main className="flex min-h-screen items-center justify-center">
 			<form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4 p-6">
-				<h1 className="text-2xl font-bold">Connexion</h1>
+				<h1 className="text-2xl font-bold">Inscription</h1>
 
 				{error && (
 					<p className="rounded bg-red-100 p-2 text-sm text-red-700">{error}</p>
 				)}
+
+				<label className="flex flex-col gap-1">
+					<span className="text-sm">Nom</span>
+					<input
+						type="text"
+						value={name}
+						onChange={(e) => setName(e.target.value)}
+						required
+						className="rounded border px-3 py-2"
+					/>
+				</label>
 
 				<label className="flex flex-col gap-1">
 					<span className="text-sm">Email</span>
@@ -64,11 +76,11 @@ export default function LoginPage() {
 					disabled={submitting}
 					className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
 				>
-					{submitting ? 'Connexion...' : 'Se connecter'}
+					{submitting ? 'Création...' : "S'inscrire"}
 				</button>
 
 				<p className="text-sm">
-					Pas de compte ? <Link href="/register" className="underline">Inscris-toi</Link>
+					Déjà un compte ? <Link href="/login" className="underline">Connecte-toi</Link>
 				</p>
 			</form>
 		</main>

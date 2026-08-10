@@ -3,7 +3,7 @@ volumes:
     name: mariadb
     driver: local
     driver_opts:
-      device: /home/ldesboui/data/mariadb
+      device: ${MARIADB_DATA_DIR}
       o: bind
       type: none
 services:
