@@ -203,11 +203,11 @@ app.post('/api/createUser', async (req, res) => {
 		res.json({success: true, token: token});    
 	} catch (err) {
 		console.error("Database error:", err);
-		res.status(500).json({ 
-			success: false, 
-			message: 'cant connect', 
-			error: err.message 
-		});
+		if (err.code === 'ER_DUP_ENTRY') {
+			return res.status(409).json({
+				success: false,
+				message: 'cet email est déjà utilisé'
+			});
 	} finally {
 		if (conn) conn.release();
 	}
