@@ -14,10 +14,11 @@ async function callBackend(endpoint: string, options: RequestInit = {})
 			...options,
 			headers
 		});
+		const data = await response.json().catch(() => null);
 		if (!response.ok){
-			throw new Error("This endpoint couldn't be called");
+			throw new Error(data?.error || data?.message || "This endpoint couldn't be called");
 		}
-		return await response.json();
+		return data;
 	} catch (error)
 	{
 		console.error("Error:", error);
@@ -68,7 +69,7 @@ export async function fetchCreateUser(nameA: string, passwordA: string, mailA: s
 {
 	return callBackend('/createUser', {
 		method: 'POST',
-		body: JSON.stringify({ name: nameA,
+		body: JSON.stringify({ nameA: nameA,
 							 password: passwordA,
 							 mail: mailA}),
 	});

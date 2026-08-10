@@ -13,11 +13,14 @@ fclean: clean
 	docker system prune -af
 
 clean: stop
-	rm -rf $(ORIGIN)
+	sudo rm -rf $(ORIGIN)
 
 stop:
 	docker compose -f ./docker/docker-compose.yml down
 
+back:
+	docker compose -f ./docker/docker-compose.yml restart backend
+
 re: fclean all
 
-.PHONY: all fclean clean re
+.PHONY: all fclean clean re back
