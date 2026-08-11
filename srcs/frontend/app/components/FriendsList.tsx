@@ -24,31 +24,32 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 
 
 	useEffect(() => {
-    const unsubAdded = subscribe('friendAdded', () => {
-      if (!token)
-			return;
-		fetchFriends(token)
-		.then((data) => {
-			const raw: Friend[] = data.friends ?? [];
-			const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
-			setFriends(deduped);
-		})
-		.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
-		.finally(() => setLoading(false)); 
-    }, [token, refreshKey]);
+		const unsubAdded = subscribe('friendAdded', () => {
+			if (!token)
+				return;
+			fetchFriends(token)
+			.then((data) => {
+				const raw: Friend[] = data.friends ?? [];
+				const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
+				setFriends(deduped);
+			})
+			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
+			.finally(() => setLoading(false)); 
+		});
 
-	const unsubRemoved = subscribe('friendRemoved', (payload) => {
-		if (!token)
-			return;
-		fetchFriends(token)
-		.then((data) => {
-			const raw: Friend[] = data.friends ?? [];
-			const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
-			setFriends(deduped);
-		})
-		.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
-		.finally(() => setLoading(false));
-    }, [token, refreshKey]);
+		const unsubRemoved = subscribe('friendRemoved', (payload) => {
+			if (!token)
+				return;
+			fetchFriends(token)
+			.then((data) => {
+				const raw: Friend[] = data.friends ?? [];
+				const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
+				setFriends(deduped);
+			})
+			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
+			.finally(() => setLoading(false));
+		});
+	}, [token, refreshKey, subscribe];
 
 	useEffect(() => {
 		if (!token)
