@@ -49,7 +49,7 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
 			.finally(() => setLoading(false));
 		});
-	}, [token, refreshKey, subscribe];
+	}, [token, refreshKey, subscribe]);
 
 	useEffect(() => {
 		if (!token)
