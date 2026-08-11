@@ -33,6 +33,22 @@ export async function fetchUsers()
 	return callBackend("/users")
 }
 
+export async function fetchGetUser(idUser: number)
+{
+	return callBackend('/getUser', {
+		method: 'POST',
+		body: JSON.stringify({ idUser }),
+	});
+}
+
+export async function fetchGetConvos(token: string)
+{
+	return callBackend('/getConvos', {
+		method: 'POST',
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
 export async function fetchFriends(token: string)
 {
 	return callBackend('/friends', {

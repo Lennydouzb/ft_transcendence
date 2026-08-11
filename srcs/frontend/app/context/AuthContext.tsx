@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { fetchLogin, fetchCreateUser } from '../api/api';
+import { fetchLogin, fetchCreateUser, fetchUpdateUserName } from '../api/api';
 
 type User = {
 	idUser: number;
@@ -15,6 +15,7 @@ type AuthContextType = {
 	loading: boolean;
 	login: (mail: string, password: string) => Promise<void>;
 	register: (name: string, mail: string, password: string) => Promise<void>;
+	updateName: (name: string) => Promise<void>;
 	logout: () => void;
 };
 
@@ -67,6 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		applyToken(data.token);
 	}
 
+	async function updateName(name: string) {
+		if (!token)
+			return;
+		await fetchUpdateUserName(name, token);
+		setUser((prev) => (prev ? { ...prev, name } : prev));
+	}
+
 	function logout() {
 		localStorage.removeItem('token');
 		setToken(null);
@@ -74,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}
 
 	return (
-		<AuthContext.Provider value={{ user, token, isAuthenticated: !!token, loading, login, register, logout }}>
+		<AuthContext.Provider value={{ user, token, isAuthenticated: !!token, loading, login, register, updateName, logout }}>
 			{children}
 		</AuthContext.Provider>
 	);

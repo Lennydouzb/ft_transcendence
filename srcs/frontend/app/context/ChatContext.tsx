@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { useWebSocket } from './WebSocketContext';
+import { useAuth } from './AuthContext';
+import { fetchGetConvos } from '../api/api';
 
 export type ChatMessage = {
 	content: string;
@@ -18,10 +20,20 @@ type ChatContextType = {
 	setHistory: (idUser: number, messages: ChatMessage[]) => void;
 };
 
+type ConvoRow = {
+	idMessage: number;
+	content: string;
+	sendDate: string;
+	senderId: number;
+	idUser: number;
+	idUser_1: number;
+};
+
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
 	const { sendAction, subscribe } = useWebSocket();
+	const { user, token } = useAuth();
 	const [conversations, setConversations] = useState<Conversations>({});
 
 	useEffect(() => {
@@ -40,6 +52,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 		});
 		return unsubscribe;
 	}, [subscribe]);
+
+	useEffect(() => {
+		if (!user || !token)
+			return;
+		fetchGetConvos(token)
+			.then((data) => {
+				// trié par idMessage (ordre d'insertion garanti) plutôt que sendDate,
+				// qui n'a qu'une précision à la seconde et peut avoir des égalités
+				const rows: ConvoRow[] = [...(data.convos ?? [])].sort((a, b) => a.idMessage - b.idMessage);
+				const grouped: Conversations = {};
+				for (const row of rows) {
+					const otherUserId = row.idUser === user.idUser ? row.idUser_1 : row.idUser;
+					if (!grouped[otherUserId])
+						grouped[otherUserId] = [];
+					grouped[otherUserId].push({
+						content: row.content,
+						sendDate: row.sendDate,
+						fromMe: row.senderId === user.idUser,
+					});
+				}
+				setConversations((prev) => ({ ...grouped, ...prev }));
+			})
+			.catch(() => {});
+	}, [user, token]);
 
 	const sendMessage = useCallback((idUser: number, content: string) => {
 		sendAction('msg', { idUser, message: content });

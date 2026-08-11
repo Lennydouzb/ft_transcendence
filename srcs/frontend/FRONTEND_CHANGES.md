@@ -356,8 +356,114 @@ Un piège classique de flexbox, à connaître une bonne fois pour toutes : **un 
 
 ---
 
-## Ce qui reste à faire côté front (rappel)
+## 14. Page de profil — nouvelle feature (nom + photo)
 
-- **`FriendSearchBar`** : ne filtre toujours pas les gens déjà amis dans les résultats de recherche (on peut re-proposer d'ajouter quelqu'un déjà ajouté — moins grave que les bugs déjà corrigés, juste un doublon inutile dans la liste de résultats).
-- **Historique de chat au chargement** : volontairement mis de côté — `getConvos` côté back ne renvoie pas encore le véritable expéditeur de chaque message (bug connu, signalé à Lenny), donc câbler ça maintenant afficherait des messages attribués à la mauvaise personne.
-- **Mini-jeu** : bloqué côté back (variable `gameActive` jamais activée, désalignement des noms d'action `render`/`unrender` vs `spawn`/`gone`/`clickResult`) — rien à faire côté front tant que ce n'est pas corrigé côté back.
+Trois fichiers touchés, dans cet ordre logique :
+
+**`api.ts`** — ajout de `fetchGetUser(idUser)`, qui manquait complètement alors que la route back `POST /api/getUser` existait déjà. C'est elle qui permet d'aller chercher `mail`, `profilePicture` et `scoreTotal` — des infos que le JWT ne contient pas (le token ne porte que `idUser` et `name`, vu à la création dans `server.js`).
+
+**`AuthContext.tsx`** — nouvelle fonction `updateName(name)`, qui appelle `fetchUpdateUserName` (déjà existante) puis met à jour `user.name` dans le state local :
+```ts
+async function updateName(name: string) {
+	if (!token) return;
+	await fetchUpdateUserName(name, token);
+	setUser((prev) => (prev ? { ...prev, name } : prev));
+}
+```
+**Pourquoi pas juste appeler `fetchUpdateUserName` directement depuis la page de profil ?** Parce que le nom affiché dans le header du dashboard (`DashboardLayout.tsx`) vient de `user.name`, qui est décodé une seule fois depuis le JWT au login (`AuthContext`). Le back ne renvoie pas de nouveau token après un changement de nom — sans ce patch local, le header resterait affiché avec l'ancien nom jusqu'à la prochaine reconnexion. En centralisant la mise à jour dans `AuthContext` (comme `login`/`register` le font déjà), un seul endroit gère l'état d'auth, et tous les composants qui lisent `user.name` se mettent à jour ensemble.
+
+**`app/profile/page.tsx`** (nouveau) — la page elle-même : garde d'authentification identique à `dashboard/page.tsx` (`loading`/`isAuthenticated` + redirection), chargement du profil complet via `fetchGetUser`, formulaire de nom (via `updateName`), upload/suppression de photo (via `fetchUpdateUserImage`/`fetchDeleteUserImage` — déjà écrites dans `api.ts` depuis un moment mais jamais utilisées par aucun composant jusqu'ici).
+
+**`DashboardLayout.tsx`** — le nom dans le header est maintenant un lien vers `/profile`.
+
+### À retenir
+- **Le JWT n'est pas une base de données** : il ne contient que ce qui a été mis dedans à sa création (`idUser`, `name`), et il ne se met pas à jour tout seul quand les données changent en base. Toute info qui peut changer en cours de session (photo, score...) doit être re-demandée au serveur, pas déduite du token.
+- **Centraliser les mutations d'état d'auth dans `AuthContext`** plutôt que de laisser chaque page appeler l'API directement et gérer elle-même la synchronisation — sinon chaque nouvelle page qui touche au profil réinvente sa propre façon (souvent bancale) de garder le header à jour.
+
+---
+
+## 15. Page de score — nouvelle feature (score initial + classement)
+
+**`GameContext.tsx`** — avant, `score` restait `null` tant qu'aucun évènement WS `clickResult` n'était reçu, donc `ScoreDisplay` n'affichait jamais rien pour quelqu'un qui n'avait pas encore joué au mini-jeu (actuellement cassé côté back, donc : jamais). Ajout d'un chargement initial au montage, avec la même fonction `fetchGetUser` qu'on vient d'ajouter pour la page de profil :
+```ts
+useEffect(() => {
+	if (!user) return;
+	fetchGetUser(user.idUser)
+		.then((data) => {
+			const found = data?.[0];
+			if (found && typeof found.scoreTotal === 'number')
+				setScore(found.scoreTotal);
+		})
+		.catch(() => {});
+}, [user]);
+```
+Le score affiché vient maintenant soit de ce chargement initial, soit d'un futur `clickResult` en direct — les deux mettent à jour le même state `score`, donc `ScoreDisplay` n'a rien à changer de son côté.
+
+**`ScoreDisplay.tsx`** — le badge de score dans le header est maintenant un lien vers `/score` (même principe que le nom d'utilisateur → `/profile`).
+
+**`app/score/page.tsx`** (nouveau) — page de classement : réutilise `fetchUsers()` (déjà existante, `GET /api/users`, qui renvoie déjà `scoreTotal` pour chaque utilisateur), triée côté client par score décroissant. La ligne du joueur connecté est mise en évidence (comparaison `u.idUser === user?.idUser`).
+
+### À retenir
+- **Pas besoin d'une nouvelle route back pour un classement** : `/api/users` exposait déjà tout ce qu'il fallait (`scoreTotal` inclus). Avant d'ajouter une fonction dans `api.ts`, vérifie si une route existante ne couvre pas déjà le besoin, même si elle a été écrite pour autre chose à l'origine (ici, la recherche d'amis).
+- **Un seul state, plusieurs sources qui l'alimentent** : `score` dans `GameContext` est maintenant mis à jour à la fois par un chargement initial (HTTP) et par un évènement temps réel (WebSocket) — tant que les deux écrivent dans le même state avec `setScore`, les composants qui le lisent (`ScoreDisplay`) n'ont pas besoin de savoir d'où vient la valeur.
+
+## 16. `FriendSearchBar.tsx` — exclure les amis déjà ajoutés des résultats
+
+### Cause
+La recherche filtrait déjà son propre compte (section 9) mais pas les amis existants — chercher quelqu'un qu'on avait déjà ajouté le faisait quand même apparaître avec un bouton "Ajouter", qui aurait échoué avec "You are already friends" (`409`, géré proprement depuis la section 9, mais autant ne jamais montrer le bouton).
+
+### Fix
+`FriendSearchBar` n'avait pas accès à la liste d'amis actuelle (elle vit dans l'état de `FriendsList`, un composant voisin, pas un parent). Plutôt que de remonter cet état dans `DashboardLayout` pour le partager entre les deux (un refactor plus large, pas nécessaire pour ce besoin), `handleSearch` va chercher sa propre copie de la liste d'amis en parallèle de la recherche d'utilisateurs :
+```ts
+const [users, friendsData]: [Friend[], { friends?: Friend[] }] = await Promise.all([
+	fetchUsers(),
+	token ? fetchFriends(token) : Promise.resolve({ friends: [] }),
+]);
+const friendIds = new Set((friendsData.friends ?? []).map((f) => f.idUser));
+...
+users.filter((u) => u.idUser !== user?.idUser && !friendIds.has(u.idUser) && ...)
+```
+
+### À retenir
+- **`Promise.all([...])` lance plusieurs requêtes en parallèle** plutôt que l'une après l'autre (`await` séquentiel) — deux fois plus rapide ici puisque `fetchUsers()` et `fetchFriends()` ne dépendent pas l'une de l'autre.
+- **Un `Set` est le bon outil pour tester "est-ce que X est dans cette liste ?" beaucoup de fois** (`friendIds.has(u.idUser)` est en O(1), contre O(n) pour `array.includes()` répété dans un `.filter()`) — un réflexe utile dès que la liste peut grandir.
+- **Duplication délibérée** : ça refait un appel réseau à `/api/friends` que `FriendsList` a peut-être déjà fait juste à côté. Un vrai partage d'état entre les deux composants (remonté dans `DashboardLayout`) éviterait la duplication, mais aurait demandé de restructurer trois fichiers pour un gain surtout esthétique — pas justifié pour une recherche ponctuelle et peu fréquente.
+
+---
+
+## 17. Suite de la session : passage côté back
+
+À partir d'ici, la session a continué directement sur `srcs/backend` plutôt que de rester cantonnée au front (décision explicite, pas juste un dépannage ponctuel). Le détail — dont un bug de routage WebSocket qui faisait qu'aucune action WS (`auth`, `msg`, `click`...) n'avait jamais été traitée depuis le début du projet, et pas seulement le mini-jeu — est dans `srcs/backend/BACKEND_CHANGES.md`. Le contrat front/back à jour est dans `srcs/backend/BACKEND_TODO.md`.
+
+Conséquence pour le front : le mini-jeu fonctionne maintenant de bout en bout (plus rien à faire ici), et `getConvos` renvoie enfin le bon expéditeur — seul l'historique de chat au chargement reste à câbler côté front (voir ci-dessous), le blocage back ayant disparu.
+
+## 18. Historique de chat au chargement — dernière tâche connue, terminée
+
+**`api.ts`** — `fetchGetConvos(token)` ajouté (`POST /api/getConvos`, header seulement, l'`idUser` vient du JWT côté back).
+
+**`ChatContext.tsx`** — nouveau `useEffect` qui se déclenche une fois que `user`/`token` sont disponibles (donc juste après connexion) :
+```ts
+const rows: ConvoRow[] = [...(data.convos ?? [])].sort((a, b) => a.idMessage - b.idMessage);
+const grouped: Conversations = {};
+for (const row of rows) {
+	const otherUserId = row.idUser === user.idUser ? row.idUser_1 : row.idUser;
+	if (!grouped[otherUserId]) grouped[otherUserId] = [];
+	grouped[otherUserId].push({
+		content: row.content,
+		sendDate: row.sendDate,
+		fromMe: row.senderId === user.idUser,
+	});
+}
+setConversations((prev) => ({ ...grouped, ...prev }));
+```
+Deux points techniques qui méritent explication :
+
+- **Regroupement par conversation** : `getConvos` renvoie un tableau plat de *tous* les messages de toutes les conversations de l'utilisateur, pas déjà groupé par ami. Chaque ligne porte `idUser`/`idUser_1` (les deux participants constants du fil) — celui des deux qui n'est pas moi devient la clé `otherUserId` du regroupement, exactement le même identifiant que celui utilisé partout ailleurs dans `ChatContext` (`getMessages(idUser)`, `sendMessage(idUser, ...)`).
+- **Tri par `idMessage`, pas par `sendDate`** : la requête SQL de `getConvos` n'a pas de `ORDER BY`, donc l'ordre renvoyé par MariaDB n'est pas garanti chronologique. `sendDate` est un `DATETIME` (précision à la seconde) — deux messages envoyés dans la même seconde seraient à égalité et pourraient se retrouver dans le mauvais ordre. `idMessage` (`AUTO_INCREMENT`) garantit, lui, l'ordre d'insertion réel sans ambiguïté.
+
+### À retenir
+- **Une donnée plate en base doit souvent être regroupée côté client** — le back n'a aucune raison de renvoyer une structure imbriquée par conversation s'il ne la construit pas déjà lui-même ; c'est au front de faire ce travail avec les identifiants qu'il a déjà (ici, "qui n'est pas moi dans cette paire").
+- **Ne jamais trier par un timestamp à faible précision quand une clé auto-incrémentée est disponible** — l'ordre d'insertion réel (`idMessage`) est une garantie plus forte que l'horodatage (`sendDate`) pour départager des évènements proches.
+- `setConversations((prev) => ({ ...grouped, ...prev }))` : l'historique chargé sert de **base**, tout ce qui est déjà arrivé en direct via WebSocket avant que cet appel ne se termine (fenêtre de quelques centaines de ms au pire, à la connexion) prend le dessus. Compromis délibéré plutôt que de fusionner les deux tableaux message par message — la fenêtre de risque est minime et la fusion fine aurait ajouté de la complexité pour un cas limite très rare.
+
+C'était la dernière tâche connue côté front. Tout ce qui restait dans `BACKEND_TODO.md`/`FRONTEND_CHANGES.md` est maintenant réglé, à l'exception du broadcast WS sur suppression d'amitié (côté back, confié au coéquipier).

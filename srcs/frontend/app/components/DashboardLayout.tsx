@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { Friend } from '../types';
 import FriendsList from './FriendsList';
@@ -17,7 +18,9 @@ export default function DashboardLayout() {
 	return (
 		<div className="flex h-screen flex-col">
 			<header className="flex items-center justify-between border-b px-4 py-2">
-				<span className="font-semibold">{user?.name}</span>
+				<Link href="/profile" className="font-semibold hover:underline">
+					{user?.name}
+				</Link>
 				<ScoreDisplay />
 				<button
 					onClick={logout}

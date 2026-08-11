@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { useWebSocket } from './WebSocketContext';
 import { useAuth } from './AuthContext';
+import { fetchGetUser } from '../api/api';
 
 type Position = { x: number; y: number };
 
@@ -26,10 +27,22 @@ function randomPosition(): Position {
 
 export function GameProvider({ children }: { children: ReactNode }) {
 	const { sendAction, subscribe } = useWebSocket();
-	const { token } = useAuth();
+	const { token, user } = useAuth();
 	const [visible, setVisible] = useState(false);
 	const [position, setPosition] = useState<Position | null>(null);
 	const [score, setScore] = useState<number | null>(null);
+
+	useEffect(() => {
+		if (!user)
+			return;
+		fetchGetUser(user.idUser)
+			.then((data) => {
+				const found = data?.[0];
+				if (found && typeof found.scoreTotal === 'number')
+					setScore(found.scoreTotal);
+			})
+			.catch(() => {});
+	}, [user]);
 
 	useEffect(() => {
 		const unsubSpawn = subscribe('spawn', () => {

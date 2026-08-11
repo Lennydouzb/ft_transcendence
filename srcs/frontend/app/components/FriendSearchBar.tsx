@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, SubmitEvent } from 'react';
-import { fetchUsers, fetchAddFriend } from '../api/api';
+import { fetchUsers, fetchAddFriend, fetchFriends } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import { Friend } from '../types';
 
@@ -23,10 +23,19 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 		setSearching(true);
 		setError(null);
 		try {
-			const users: Friend[] = await fetchUsers();
+			const [users, friendsData]: [Friend[], { friends?: Friend[] }] = await Promise.all([
+				fetchUsers(),
+				token ? fetchFriends(token) : Promise.resolve({ friends: [] }),
+			]);
+			const friendIds = new Set((friendsData.friends ?? []).map((f) => f.idUser));
 			const lowerQuery = query.toLowerCase();
 			setResults(
-				users.filter((u) => u.idUser !== user?.idUser && u.name.toLowerCase().includes(lowerQuery))
+				users.filter(
+					(u) =>
+						u.idUser !== user?.idUser &&
+						!friendIds.has(u.idUser) &&
+						u.name.toLowerCase().includes(lowerQuery)
+				)
 			);
 		} finally {
 			setSearching(false);

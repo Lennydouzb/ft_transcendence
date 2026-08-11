@@ -4,13 +4,16 @@ Ce fichier documente ce que le **front** (`srcs/frontend`) suppose/attend du **b
 
 À mettre à jour au fur et à mesure que des points sont réglés (cocher, ou supprimer la section si totalement stabilisée).
 
+Pour le détail narratif (symptôme → cause → fix → à retenir) de chaque bug back listé ici, voir `BACKEND_CHANGES.md`. Ce fichier-ci reste le contrat à jour et rapide à parcourir ; l'autre explique le pourquoi.
+
 ---
 
 ## 1. WebSocket — protocole général
 
 Le front se connecte directement à `ws://localhost:8080` (bypass du proxy nginx `/ws/`, comme le fait déjà `app/api/api.ts` pour le REST). Chaque message est un JSON `{ action: string, ...payload }`. Le front route chaque message entrant vers des abonnés selon le champ `action` — donc **toute nouvelle feature WS doit avoir un nom d'`action` unique et stable**, communiqué ici.
 
-- [x] **Fix appliqué par le front** : `server.js` ligne ~439, `ws.on('message', (message) => { const args = JSON.parse(mesage); ... })` → `mesage` était une faute de frappe (variable non définie), corrigé en `message`. Sans ce fix, **tout** message entrant (y compris `auth`) plantait avec `{ error: "Format de message invalide" }`. C'est corrigé, mais gardez-le en tête si vous retouchez ce bloc.
+- [x] **Fix appliqué par le front** : `server.js` ligne ~439, `ws.on('message', (message) => { const args = JSON.parse(mesage); ... })` → `mesage` était une faute de frappe (variable non définie), corrigé en `message`. C'est corrigé, mais gardez-le en tête si vous retouchez ce bloc.
+- [x] **Bug bien plus grave découvert et corrigé** : `ws.on('message', ...)` et `ws.on('close', ...)` étaient déclarés **en dehors** du bloc `ws.on('connection', (ws) => {...})`, donc attachés à l'objet `WebSocketServer` (le serveur) et non à une connexion client précise. Or la librairie `ws` n'émet **jamais** d'évènement `'message'` sur l'objet serveur — seulement sur chaque connexion individuelle. Conséquence : `getActions[args.action](ws, args)` n'était **jamais appelé, pour personne, depuis toujours** — `auth`, `msg`, `ppChange`, `click`, `disconnect` ne faisaient jamais rien en pratique, silencieusement (aucune erreur, juste zéro effet). `sessionsUsers` est resté vide en permanence. C'est ce qui a fait croire que le mini-jeu était juste "pas encore branché", alors qu'en réalité **aucune action WebSocket ne fonctionnait**, y compris `auth` lui-même. Vérifié avec un script Node isolé (connexion + `auth` + écoute 20s : zéro réponse avant le fix, réponses immédiates après). Fix : les listeners `message`/`close` sont maintenant attachés à la connexion individuelle (`socket`), à l'intérieur de `ws.on('connection', (socket) => {...})`.
 - Handshake attendu par le front : à l'ouverture de la socket, il envoie immédiatement `{ action: "auth", token: "Bearer <jwt>" }`. Ça matche `manageAuth` dans `ws/actions.js` tel qu'il existe déjà. Rien à faire ici, juste une confirmation de contrat.
 
 ---
@@ -19,26 +22,15 @@ Le front se connecte directement à `ws://localhost:8080` (bypass du proxy nginx
 
 ### Historique au chargement — `POST /api/getConvos`
 
-Route déjà présente (`server.js`), mais **incomplète** :
-
-- [ ] **Bug bloquant** : la route fait la requête SQL mais ne renvoie jamais les lignes — `res.status(200).json({success: true})` sans les `rows`. Le front a besoin d'un tableau de messages dans la réponse.
-- [ ] **Ambiguïté à résoudre** : la requête SQL est
+- [x] **Bug bloquant résolu** : la route renvoie maintenant bien les lignes (`res.status(200).json({success: true, convos: rows})`).
+- [x] **Ambiguïté résolue** : la requête sélectionne maintenant aussi `tr_Message.idUser as senderId` (l'expéditeur réel), en plus de `tr_Chat.idUser`/`idUser_1` (les deux participants constants du fil, utiles pour calculer `otherUserId` côté front) :
   ```sql
-  select tr_Message.idMessage, content, sendDate, tr_Chat.idUser, tr_Chat.idUser_1
+  select tr_Message.idMessage, content, sendDate, tr_Message.idUser as senderId, tr_Chat.idUser, tr_Chat.idUser_1
   from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage
   where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?
   ```
-  Elle sélectionne `tr_Chat.idUser`/`tr_Chat.idUser_1` (les deux participants de la conversation, constants pour tout le fil) mais **pas** `tr_Message.idUser` (l'expéditeur réel du message). Résultat : impossible pour le front de savoir qui a écrit quoi. Il faut sélectionner l'expéditeur réel, par ex. `tr_Message.idUser as senderId`.
-- **Format de réponse attendu par le front** (proposition, à valider ensemble) :
-  ```json
-  {
-    "success": true,
-    "messages": [
-      { "idMessage": 12, "content": "salut", "sendDate": "2026-08-10T10:00:00Z", "senderId": 3, "otherUserId": 7 }
-    ]
-  }
-  ```
-  Le front regroupera ensuite ces messages par `otherUserId` (= l'ami autre que soi-même dans `idUser`/`idUser_1`) pour peupler `ChatContext.setHistory(idUser, messages)`.
+- **Format de réponse réel** : `{ "success": true, "convos": [{ "idMessage", "content", "sendDate", "senderId", "idUser", "idUser_1" }] }` — clé `convos` (pas `messages` comme proposé initialement, pour rester alignés sur ce que le code renvoyait déjà).
+- [x] **Câblage front fait** : `fetchGetConvos` (`api.ts`) + regroupement par conversation dans `ChatContext.tsx` (voir `srcs/frontend/FRONTEND_CHANGES.md` §18). L'historique se charge à la connexion.
 
 ### Messages en direct — action WS `msg`
 
@@ -53,65 +45,42 @@ Déjà fonctionnel côté back (`manageMsg` dans `ws/actions.js`) et déjà bran
 
 ## 3. Amis
 
-Confirmé par le back : `GET /api/friends` et `POST /api/addFriend`. **Le front est maintenant codé et les consomme réellement** (`FriendsList.tsx`, `FriendSearchBar.tsx`, `fetchFriends`/`fetchAddFriend` dans `api.ts`) contre le contrat suivant — pas encore implémenté côté back au moment de l'écriture de ce fichier, donc `FriendsList` affichera une erreur de chargement tant que la route n'existe pas :
-
-- [ ] `GET /api/friends` — header `Authorization: Bearer <jwt>`, pas de body. Réponse attendue :
-  ```json
-  { "success": true, "friends": [{ "idUser": 7, "name": "bob", "profilePicture": "xxx.png", "scoreTotal": 300 }] }
-  ```
-- [ ] `POST /api/addFriend` — header `Authorization: Bearer <jwt>`, body `{ "idUser": <idDeLaCiblAAjouter> }`. Réponse attendue : `{ "success": true }` ou `{ "success": false, "message": "..." }`.
-- Pour la barre de recherche, le front prévoit d'utiliser `GET /api/users` (déjà existante) pour lister tous les utilisateurs et filtrer côté client, sauf si le back préfère exposer une route de recherche dédiée — à voir selon volume d'utilisateurs.
-- Remarque annexe (non bloquante) : `GET /api/getUser` lit `idUser` depuis `req.body` sur une requête **GET** — les navigateurs/`fetch()` n'envoient pas fiablement de body sur un GET. À corriger un jour (query param ou passer en POST), mais pas utilisée par le front pour l'instant donc pas urgent.
+- [x] **`/api/friends` implémentée et branchée**, mais en `POST` (pas `GET` comme proposé initialement) — le front (`fetchFriends` dans `api.ts`) a été aligné dessus. Réponse : `{ "success": true, "friends": [{ "idUser", "name", "mail", "profilePicture", "scoreTotal" }] } }`.
+- [x] **`POST /api/addFriend`** implémentée et branchée (`FriendSearchBar.tsx`), conforme au contrat proposé.
+- [x] **`DELETE /api/removeFriend`** implémentée et branchée (`FriendsList.tsx`/`FriendListItem.tsx`) — n'était même pas dans la liste initiale, ajoutée en cours de route.
+- [x] La recherche utilise bien `GET /api/users` côté front, avec filtrage client (soi-même + amis déjà ajoutés exclus des résultats).
+- [ ] **Broadcast temps réel manquant** : si "A" retire "B" de sa liste, "B" ne l'apprend pas en direct (pas de broadcast WS sur suppression d'amitié, contrairement à `ppChange`). Le front gère le cas dégradé (404 silencieux si l'action arrive après coup), mais un vrai broadcast serait plus propre — **à faire par le back**.
+- [x] Remarque annexe précédente inexacte : `/api/getUser` est en fait déjà déclarée en `POST` dans `server.js` (pas en `GET` comme noté ici avant) — pas de souci de body sur GET. Le front l'utilise maintenant (`fetchGetUser` dans `api.ts`) pour la page de profil et le classement des scores.
 
 ---
 
-## 4. Photos de profil — pas de route statique
+## 4. Photos de profil — résolu
 
-- [ ] Aucune route ne sert le contenu de `uploads/` (pas de `express.static` dessus dans `server.js`). Les endpoints d'upload/suppression écrivent bien le fichier et enregistrent son nom en DB (`tr_User.profilePicture`), mais rien ne permet de le récupérer par URL ensuite.
-- Le front (`FriendListItem`) suppose pour l'instant `http://localhost:8080/uploads/<profilePicture>` et prévoit un fallback (avatar avec initiale) si l'image ne charge pas — donc pas bloquant pour développer l'UI, mais il faudra ajouter `app.use('/uploads', express.static(path.join(__dirname, 'uploads')))` (ou équivalent) pour que les avatars s'affichent vraiment.
-
----
-
-## 5. Mini-jeu du bouton (clic pour marquer un point)
-
-Règle validée avec le PO (toi) : le back décide à intervalle aléatoire de faire apparaître un bouton (le front choisit lui-même une position aléatoire à l'écran), **seul le premier clic marque le point**, puis le bouton doit disparaître pour tout le monde.
-
-État actuel dans `ws/actions.js` : un début d'implémentation existe (`gameActive`, action `click` → `manageClick`) mais :
-
-- [ ] **Bugs de syntaxe qui empêchent le fichier de charger** (`ws/actions.js` ligne ~119) :
-  - `const manageClick = (wa, args)` : il manque `=>` après les parenthèses, et le paramètre s'appelle `wa` au lieu de `ws`.
-  - `await` utilisé dans une fonction non `async`.
-  - `conn` utilisé sans être déclaré (`let conn`).
-  - Parenthèse manquante dans `ws.send(JSON.stringify({success: true, scoreTotal: rows[0].scoreTotal))`.
-
-  Tant que ça reste comme ça, `require('./ws/actions')` plante probablement au démarrage du serveur (SyntaxError sur `await` hors fonction async) — donc **tout le backend est probablement down** dans l'état actuel du fichier, pas juste le mini-jeu. À vérifier/corriger en priorité.
-
-- [ ] **Logique de spawn manquante** : rien ne met jamais `gameActive` à 1 pour l'instant. Il faut un timer (`setTimeout`/`setInterval`) avec un délai aléatoire dans une plage à définir, qui :
-  1. passe `gameActive` à `1`,
-  2. **broadcast** un événement à tous les clients connectés (parcourir `sessionsUsers`) pour leur dire "un bouton est disponible". Proposition de nom d'action côté front : **`"spawn"`** — payload minimal, pas de position (le front la génère lui-même) : `{ "action": "spawn" }`.
-
-- [ ] **Garantir "premier clic gagne" de façon atomique** : dans `manageClick`, il faut consommer `gameActive` (le repasser à `0`) **avant** toute opération asynchrone (avant l'`await` sur la DB), sinon deux clics presque simultanés peuvent tous les deux passer le test `if (gameActive == 1)` avant que l'un des deux ait eu le temps de le repasser à 0.
-
-- [ ] **Broadcast de disparition** : une fois qu'un clic a gagné, il faut prévenir tous les autres clients que le bouton n'est plus disponible (sinon les autres utilisateurs le voient toujours affiché alors qu'il n'y a plus rien à gagner). Proposition de nom d'action : **`"gone"`** — `{ "action": "gone" }`, broadcast à tous.
-
-- [ ] **Score : +100 vs +1** : le code actuel fait `scoreTotal = scoreTotal + 100`. Le PO a dit "marque 1 point" dans les specs — à clarifier si c'est vraiment +1 ou si +100 est voulu (barème de points). Le front affichera juste `scoreTotal` tel quel donc ce n'est pas bloquant pour lui, mais autant clarifier.
-
-- [ ] **Ajouter un champ `action` sur la réponse au clic.** `manageClick` répond `ws.send(JSON.stringify({ success, scoreTotal }))` (ou `{ success: false, message }`) **sans** champ `action`. Le front (`GameContext.tsx`, déjà codé) route tous les messages entrants uniquement selon `data.action` — un message sans ce champ n'est reçu par personne. Il faut donc que cette réponse devienne `{ action: "clickResult", success, scoreTotal }` (nom proposé, modifiable si besoin, juste le prévenir côté front).
-
-**Contrat WS déjà codé côté front pour ce mini-jeu** (`GameContext.tsx`) — à respecter une fois les points ci-dessus réglés :
-- Réception `{ action: "spawn" }` → le front affiche le bouton à une position aléatoire.
-- Émission `{ action: "click", token: "Bearer <jwt>" }` au clic (le front notera si le token doit vraiment être renvoyé ici alors qu'il a déjà été fourni via `auth` à la connexion — semble redondant mais on suit ce que fait `manageClick` actuellement).
-- Réception `{ action: "clickResult", success: true, scoreTotal }` (gagné) ou `{ action: "clickResult", success: false, message }` (raté) → mise à jour de `ScoreDisplay`.
-- Réception `{ action: "gone" }` (broadcast) → le front cache le bouton même s'il n'a pas cliqué.
+- [x] `app.use('/uploads', express.static(path.join(__dirname, 'uploads')))` ajouté dans `server.js`. Les avatars s'affichent bien via `http://localhost:8080/uploads/<profilePicture>`, y compris depuis la nouvelle page de profil front (`app/profile/page.tsx`) qui pilote maintenant upload/suppression.
 
 ---
 
-## 6. Résumé — priorités suggérées pour le back
+## 5. Mini-jeu du bouton (clic pour marquer un point) — résolu
 
-1. Fixer `ws/actions.js` (`manageClick`) pour que le serveur démarre à nouveau (bloquant, probablement casse tout le WS actuellement).
-2. Ajouter le timer de spawn + broadcast `spawn`/`gone`.
-3. Fixer `getConvos` (renvoyer les `rows`, corriger la sélection de l'expéditeur réel).
-4. Implémenter `GET /api/friends` et `POST /api/addFriend`.
-5. Servir `uploads/` statiquement pour que les avatars s'affichent.
+Règle validée avec le PO : le back décide à intervalle aléatoire de faire apparaître un bouton (le front choisit lui-même une position aléatoire à l'écran), **seul le premier clic marque le point**, puis le bouton doit disparaître pour tout le monde.
 
-Le front peut avancer sur les composants "bêtes" (affichage) sans attendre ces fixes, mais les branchements réels (chargement d'historique, amis, mini-jeu) resteront en mode "mock" tant que ces points ne sont pas réglés.
+- [x] Bugs de syntaxe déjà corrigés dans un commit précédent (le fichier chargeait normalement).
+- [x] **Bug de référence corrigé** : `manageClick` était déclaré `async (wa, args)` mais utilisait `ws` (non défini) dans son corps → `ReferenceError` à chaque clic. Paramètre renommé en `ws`, cohérent avec les autres handlers du fichier.
+- [x] **Logique de spawn ajoutée** : `startRandomRenderLoop` passe maintenant `gameActive` à `1` et diffuse `{ action: "spawn" }` à chaque cycle (au lieu de renvoyer `render` sans jamais toucher `gameActive`).
+- [x] **"Premier clic gagne" rendu atomique** : `manageClick` repasse `gameActive` à `0` **avant** l'`await` sur la base de données, dès que le clic est accepté.
+- [x] **Broadcast de disparition** : renommé `unrender` → `gone`, envoyé à la fois par la boucle de spawn (bouton expiré) et par `manageClick` (bouton gagné), pour matcher exactement ce que `GameContext.tsx` écoute déjà côté front.
+- [x] **Score** : gardé à `+100` (décision confirmée, le "1 point" du brief n'était pas à prendre littéralement).
+- [x] **Bug supplémentaire trouvé en testant** : la requête `update tr_User set scoreTotal = scoreTotal + 100 where idUser = ? returning scoreTotal` plantait systématiquement — **MariaDB ne supporte pas `UPDATE ... RETURNING`** (contrairement à PostgreSQL ; MariaDB ne l'a que pour `INSERT`/`DELETE`). Le clic gagnant tombait donc toujours dans le `catch`, renvoyait `"The database didn't want you to win"`, et le score n'était **jamais** incrémenté en base — invisible dans l'UI puisque le bouton disparaissait quand même (`gone` est indépendant du résultat). Remplacé par un `UPDATE` suivi d'un `SELECT` séparé. Vérifié : `scoreTotal` s'incrémente bien en base désormais.
+- [x] **Champ `action` ajouté** sur toutes les réponses de `manageClick` (`{ action: "clickResult", success, scoreTotal }` ou `{ action: "clickResult", success: false, message }`) — sans lui, le front ne pouvait router aucune réponse.
+
+Le contrat WS déjà codé côté front (`GameContext.tsx`) est maintenant respecté de bout en bout : `spawn` → affichage, `click` → `clickResult` (+ mise à jour `ScoreDisplay`), `gone` → disparition pour tout le monde.
+
+---
+
+## 6. Résumé — état actuel
+
+Tout ce qui était listé dans ce fichier est réglé et vérifié en conditions réelles (mini-jeu, chat en direct, amis, avatars, page de profil, page de score). Le schéma `tr_Message` (colonne `idUser` manquante malgré la `FOREIGN KEY`, dans `docker/mariadb/tools/start.sh`) a aussi été corrigé au passage — sans lien direct avec ce contrat mais bloquant tout le reste tant qu'il n'était pas réglé.
+
+Il ne reste qu'un seul point, non bloquant pour l'usage normal de l'app :
+
+1. **Broadcast WS sur suppression d'amitié** (section 3) — à faire côté back.
