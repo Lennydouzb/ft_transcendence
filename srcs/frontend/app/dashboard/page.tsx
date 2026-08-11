@@ -3,9 +3,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import DashboardLayout from '../components/DashboardLayout';
 
 export default function DashboardPage() {
-	const { user, loading, isAuthenticated, logout } = useAuth();
+	const { loading, isAuthenticated } = useAuth();
 	const router = useRouter();
 
 	useEffect(() => {
@@ -22,15 +23,5 @@ export default function DashboardPage() {
 		);
 	}
 
-	return (
-		<main className="flex min-h-screen flex-col items-center justify-center gap-4">
-			<h1 className="text-2xl font-bold">Bienvenue, {user?.name}</h1>
-			<button
-				onClick={logout}
-				className="rounded bg-red-600 px-4 py-2 text-white"
-			>
-				Se déconnecter
-			</button>
-		</main>
-	);
+	return <DashboardLayout />;
 }

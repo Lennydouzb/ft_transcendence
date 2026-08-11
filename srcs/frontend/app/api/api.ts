@@ -31,6 +31,22 @@ export async function fetchUsers()
 	return callBackend("/users")
 }
 
+export async function fetchFriends(token: string)
+{
+	return callBackend('/friends', {
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchAddFriend(idUser: number, token: string)
+{
+	return callBackend('/addFriend', {
+		method: 'POST',
+		body: JSON.stringify({ idUser }),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
 export async function fetchGames()
 {
 	return callBackend("/games")
