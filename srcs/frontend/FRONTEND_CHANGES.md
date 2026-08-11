@@ -262,9 +262,102 @@ Le vrai fix (prévenir "user" en direct) demande un broadcast WS côté back —
 
 ---
 
+## 9. `FriendSearchBar.tsx` — deux trous qui se combinaient pour crasher
+
+### Symptôme
+`Runtime ApiError: Cannot add yourself as a friend` — une erreur **non catchée**, affichée comme un vrai crash par Next.js (contrairement aux erreurs gérées ailleurs qui s'affichent en texte rouge dans l'UI).
+
+### Cause (deux bugs distincts, l'un révélant l'autre)
+
+**Bug 1 : `GET /api/users` renvoie tout le monde, toi y compris**, et `handleSearch` ne filtrait jamais son propre compte hors des résultats :
+```ts
+setResults(users.filter((user) => user.name.toLowerCase().includes(lowerQuery)));
+```
+Si ta recherche matchait aussi ton propre nom, tu te retrouvais dans tes propres résultats de recherche, avec un bouton "Ajouter" bien réel dessus.
+
+**Bug 2 : `handleAdd` n'avait aucun `try/catch`** :
+```ts
+async function handleAdd(idUser: number) {
+	if (!token) return;
+	await fetchAddFriend(idUser, token);   // si ça throw, personne ne l'attrape
+	...
+}
+```
+Cliquer "Ajouter" sur soi-même déclenche bien la vérification côté back (`server.js` : `if (jwtDecoded.idUser === idUser) return res.status(400).json({message: "Cannot add yourself as a friend"})`), qui est correcte — mais comme rien ne catchait l'erreur renvoyée, elle remontait jusqu'à React sous forme d'exception non gérée, d'où le "Runtime Error" plein écran au lieu d'un simple message.
+
+### Fix
+```ts
+const { token, user } = useAuth();
+...
+setResults(
+	users.filter((u) => u.idUser !== user?.idUser && u.name.toLowerCase().includes(lowerQuery))
+);
+...
+async function handleAdd(idUser: number) {
+	if (!token) return;
+	setError(null);
+	try {
+		await fetchAddFriend(idUser, token);
+		setResults((prev) => prev.filter((u) => u.idUser !== idUser));
+		onFriendAdded();
+	} catch (err) {
+		setError(err instanceof Error ? err.message : "Impossible d'ajouter cet ami");
+	}
+}
+```
+(le nom de variable dans les `.map`/`.filter` locaux a été renommé de `user` à `u` pour ne pas masquer le `user` importé de `useAuth()` — un problème classique de scope en JS : une variable locale du même nom qu'une variable englobante la rend inaccessible dans ce bloc)
+
+### À retenir
+- **Un bug d'affichage anodin (soi-même dans une liste de recherche) peut devenir un crash** dès qu'il croise un endroit sans gestion d'erreur. Corriger uniquement le filtrage aurait suffi ici, mais le vrai problème de fond — `handleAdd` sans `try/catch` — restait un risque pour n'importe quelle autre erreur possible de `/api/addFriend` (déjà ami, jwt expiré, etc.), pas seulement celle-ci.
+- **Toute fonction `async` déclenchée par un clic doit avoir son propre `try/catch`** si tu veux contrôler comment l'erreur s'affiche à l'utilisateur — sinon c'est Next.js/React qui décide à ta place (et ça décide "crash plein écran").
+
+---
+
+## 10. Synchronisation temps réel — pris en charge côté back
+
+Le coéquipier va ajouter un broadcast WebSocket quand une amitié est supprimée (le point "Cause B" de la section 8). Une fois ça fait, plus besoin de compter sur le rattrapage silencieux du 404 pour masquer le décalage — les deux côtés seront notifiés en direct. On garde quand même la gestion du 404 en place : elle ne coûte rien et protège contre d'autres cas de désynchronisation (latence réseau, onglet resté ouvert plusieurs jours, etc.).
+
+## 11. Chat : texte trop long qui déborde de la bulle
+
+### Symptôme
+Un message sans espaces (ex: une longue suite de la même lettre) dépasse horizontalement de la bulle bleue au lieu de passer à la ligne.
+
+### Cause
+`ChatMessageItem.tsx` limitait la largeur de la bulle (`max-w-xs`) mais ne disait rien sur *comment* casser le texte à l'intérieur. Par défaut en CSS, le texte ne se coupe qu'aux espaces (`overflow-wrap: normal`) — un mot sans espace, aussi long soit-il, est traité comme une seule unité insécable et pousse en dehors de son conteneur plutôt que de se couper.
+
+### Fix
+Ajout de la classe Tailwind `break-words` (= `overflow-wrap: break-word` en CSS) sur la bulle, qui autorise la coupure à l'intérieur d'un mot quand c'est la seule façon de tenir dans la largeur disponible.
+
+### À retenir
+- `max-width` seul ne protège pas d'un débordement de texte — il faut aussi une règle de coupure (`overflow-wrap`/`word-break`) pour le contenu que l'utilisateur ne contrôle pas (ici, n'importe qui peut taper une suite de caractères sans espace).
+
+## 12. Chat : limite de 100 caractères ajoutée côté front
+
+Le back rejette déjà les messages de plus de 100 caractères (`ws/actions.js`, `manageMsg`) — silencieusement, sans réponse claire. Côté front (`ChatInput.tsx`), ajout de `maxLength={100}` sur l'`<input>` (empêche physiquement de taper plus) et d'un petit compteur `content.length/100` sous le champ, pour que l'utilisateur comprenne la limite avant d'atteindre un message qui partirait dans le vide.
+
+**Pourquoi dupliquer une règle déjà présente côté back ?** Ce n'est pas de la redondance inutile : le back reste la seule source de vérité pour la sécurité/l'intégrité des données (il doit re-vérifier même si le front a déjà limité, un client malveillant peut envoyer n'importe quoi directement au WebSocket). La limite côté front, elle, sert uniquement l'expérience utilisateur — éviter de taper un message qui semble parti mais qui n'arrivera jamais.
+
+## 13. Barre de recherche qui chevauchait la fenêtre de chat
+
+### Symptôme
+Le bouton "Chercher" et le champ de recherche débordaient de la colonne de gauche et venaient se superposer visuellement au nom de l'ami affiché dans la fenêtre de chat à droite.
+
+### Cause
+Un piège classique de flexbox, à connaître une bonne fois pour toutes : **un `<input>` dans un conteneur flex a une largeur minimale implicite** (`min-width: auto`), qui l'empêche de rétrécir en dessous de sa taille "naturelle" même avec la classe `flex-1`. Dans `FriendSearchBar.tsx`, la ligne `<input className="flex-1 ...">` + le bouton "Chercher" avaient donc besoin de plus de largeur que les `256px` (`w-64`) alloués à la colonne de gauche (`<aside>` dans `DashboardLayout.tsx`). Comme `<aside>` n'avait pas de `overflow-hidden`, ce débordement n'était pas coupé — il continuait de s'afficher par-dessus le contenu voisin (`<main>`) au lieu de disparaître ou de forcer un retour à la ligne.
+
+### Fix
+- `FriendSearchBar.tsx` : `min-w-0` ajouté sur l'`<input>` — autorise explicitement l'élément à rétrécir en dessous de sa taille naturelle, pour que `flex-1` fonctionne comme prévu.
+- `ChatInput.tsx` : même `min-w-0` ajouté par précaution (même structure flex + input).
+- `DashboardLayout.tsx` : `<aside>` a maintenant `shrink-0` (ne rétrécit jamais lui-même, garde ses 256px pile) et `overflow-hidden` (si jamais quelque chose déborde quand même à l'intérieur, ça se découpe proprement au lieu de chevaucher `<main>`).
+
+### À retenir
+- **`flex-1` ne suffit pas à rendre un élément rétractable** — les éléments avec du contenu intrinsèque (texte, `<input>`, `<img>`) ont une taille minimale par défaut qui prime sur `flex-1`/`flex-shrink`. Le réflexe : ajouter `min-w-0` (ou `min-width: 0` en CSS brut) sur l'élément flex concerné dès qu'il doit pouvoir rétrécir.
+- **Un conteneur à largeur fixe devrait avoir `overflow-hidden`** s'il contient des enfants dont la taille n'est pas garantie — ça transforme un bug visuel "qui déborde sur le voisin" en un bug beaucoup plus repérable "qui est juste coupé", et surtout ça évite le chevauchement trompeur qu'on a vu ici.
+
+---
+
 ## Ce qui reste à faire côté front (rappel)
 
-- **Limite de caractères sur le chat** : le back rejette silencieusement les messages de plus de 100 caractères (`ws/actions.js`, `manageMsg`). Ajouter `maxLength={100}` sur l'`<input>` de `ChatInput.tsx` + un compteur visuel.
-- **`FriendSearchBar`** : ne filtre pas les gens déjà amis dans les résultats de recherche, et n'affiche pas d'erreur si `fetchAddFriend` échoue.
+- **`FriendSearchBar`** : ne filtre toujours pas les gens déjà amis dans les résultats de recherche (on peut re-proposer d'ajouter quelqu'un déjà ajouté — moins grave que les bugs déjà corrigés, juste un doublon inutile dans la liste de résultats).
 - **Historique de chat au chargement** : volontairement mis de côté — `getConvos` côté back ne renvoie pas encore le véritable expéditeur de chaque message (bug connu, signalé à Lenny), donc câbler ça maintenant afficherait des messages attribués à la mauvaise personne.
 - **Mini-jeu** : bloqué côté back (variable `gameActive` jamais activée, désalignement des noms d'action `render`/`unrender` vs `spawn`/`gone`/`clickResult`) — rien à faire côté front tant que ce n'est pas corrigé côté back.

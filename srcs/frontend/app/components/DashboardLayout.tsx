@@ -28,7 +28,7 @@ export default function DashboardLayout() {
 			</header>
 
 			<div className="flex flex-1 overflow-hidden">
-				<aside className="flex w-64 flex-col border-r">
+				<aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r">
 					<FriendSearchBar onFriendAdded={() => setRefreshKey((k) => k + 1)} />
 					<FriendsList
 						refreshKey={refreshKey}
