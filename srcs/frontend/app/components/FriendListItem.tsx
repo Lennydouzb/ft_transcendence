@@ -9,16 +9,23 @@ type FriendListItemProps = {
 	friend: Friend;
 	selected: boolean;
 	onSelect: (friend: Friend) => void;
+	onRemove: (idUser: number) => void;
+	removing: boolean;
 };
 
-export default function FriendListItem({ friend, selected, onSelect }: FriendListItemProps) {
+export default function FriendListItem({ friend, selected, onSelect, onRemove, removing }: FriendListItemProps) {
 	const [imageFailed, setImageFailed] = useState(false);
 	const showImage = friend.profilePicture && !imageFailed;
 
 	return (
-		<button
-			type="button"
+		<div
+			role="button"
+			tabIndex={0}
 			onClick={() => onSelect(friend)}
+			onKeyDown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ')
+					onSelect(friend);
+			}}
 			className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left hover:bg-gray-100 ${
 				selected ? 'bg-gray-200' : ''
 			}`}
@@ -35,7 +42,18 @@ export default function FriendListItem({ friend, selected, onSelect }: FriendLis
 					{friend.name.charAt(0).toUpperCase()}
 				</span>
 			)}
-			<span className="text-sm font-medium">{friend.name}</span>
-		</button>
+			<span className="flex-1 text-sm font-medium">{friend.name}</span>
+			<button
+				type="button"
+				disabled={removing}
+				onClick={(e) => {
+					e.stopPropagation();
+					onRemove(friend.idUser);
+				}}
+				className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
+			>
+				{removing ? '...' : 'Retirer'}
+			</button>
+		</div>
 	);
 }

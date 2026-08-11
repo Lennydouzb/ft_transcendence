@@ -26,6 +26,7 @@ CREATE TABLE tr_Message(
    idMessage INT AUTO_INCREMENT,
    content VARCHAR(100) NOT NULL,
    sendDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+   idUser INT,
    PRIMARY KEY(idMessage),
    FOREIGN KEY(idUser) REFERENCES tr_User(idUser)
 );
