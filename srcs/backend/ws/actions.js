@@ -203,6 +203,15 @@ const startRandomRenderLoop = () => {
 	}, randomDelay);
 };
 
+const notifyUser = (idUser, payload) => 
+{
+	if (sessionsUsersId.has(idUser));
+	{
+		const anUser = sessionsUsersId.get(idUser);
+        anUser.ws.send(JSON.stringify(payload));
+	}
+};
+
 const getActions =
 	{
 		'msg': manageMsg,
@@ -216,5 +225,6 @@ module.exports =
 	{
 		getActions,
 		manageDisconnect,
-		startRandomRenderLoop
+		startRandomRenderLoop,
+		notifyUser
 	};

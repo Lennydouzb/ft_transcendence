@@ -1,7 +1,7 @@
 const express = require('express');
 const mariadb = require('mariadb');
 const websocket = require('ws');
-const {getActions, manageDisconnect, startRandomRenderLoop} = require('./ws/actions');
+const {getActions, manageDisconnect, startRandomRenderLoop, notifyUser} = require('./ws/actions');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
@@ -143,6 +143,10 @@ app.post('/api/addFriend', async (req, res) => {
 			const sqlQuery = "INSERT INTO tr_Friend (idUser, idUser_1) VALUES (?, ?)";
 			await conn.query(sqlQuery, [jwtDecoded.idUser, idUser]);			
 			res.status(200).json({ success: true, message: "Friend added successfully" });
+			notifyUser(idUser, {
+                action: 'friendAdded',
+                friendId: jwtDecoded.idUser
+            });
 		} catch (err) {
 			console.error("Database error:", err);
 			if (err.code === 'ER_DUP_ENTRY') {
@@ -548,6 +552,10 @@ app.delete('/api/removeFriend', async (req, res) => {
 				return res.status(404).json({ success: false, message: "Friendship not found" });
 			}
 			res.status(200).json({ success: true, message: "Friend removed successfully" });
+			notifyUser(idUser, {
+                action: 'friendRemoved',
+                friendId: jwtDecoded.idUser
+            });
 		} catch (err) {
 			console.error("Database error:", err);
 			res.status(500).json({ 
