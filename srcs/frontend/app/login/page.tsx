@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, SubmitEvent } from 'react';
+import { useState, useEffect, SubmitEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
-	const { login } = useAuth();
+	const { login, loading, isAuthenticated } = useAuth();
 	const router = useRouter();
+
+	useEffect(() => {
+		if (!loading && isAuthenticated)
+			router.push('/dashboard');
+	}, [loading, isAuthenticated, router]);
 
 	const [mail, setMail] = useState('');
 	const [password, setPassword] = useState('');

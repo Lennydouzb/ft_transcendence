@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { fetchLogin, fetchCreateUser, fetchUpdateUserName } from '../api/api';
+import { fetchLogin, fetchCreateUser, fetchUpdateUserName, fetchGetUser } from '../api/api';
 
 type User = {
 	idUser: number;
@@ -38,17 +38,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const stored = localStorage.getItem('token');
-		if (stored) {
-			const decoded = decodeToken(stored);
-			if (decoded && decoded.exp * 1000 > Date.now()) {
-				setToken(stored);
-				setUser(decoded.user);
-			} else {
-				localStorage.removeItem('token');
+		async function initAuth() {
+			const stored = localStorage.getItem('token');
+			if (stored) {
+				const decoded = decodeToken(stored);
+				if (decoded && decoded.exp * 1000 > Date.now()) {
+					try {
+						// Vérifie que l'utilisateur existe toujours en base de données (ex: après un make re)
+						const data = await fetchGetUser(decoded.user.idUser);
+						if (!Array.isArray(data) || data.length === 0) {
+							throw new Error('User not found in DB');
+						}
+						setToken(stored);
+						setUser(decoded.user);
+					} catch {
+						localStorage.removeItem('token');
+						setToken(null);
+						setUser(null);
+					}
+				} else {
+					localStorage.removeItem('token');
+					setToken(null);
+					setUser(null);
+				}
 			}
+			setLoading(false);
 		}
-		setLoading(false);
+		initAuth();
 	}, []);
 
 	function applyToken(newToken: string) {

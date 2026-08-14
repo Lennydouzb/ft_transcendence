@@ -164,7 +164,7 @@ const manageClick = async (ws, args) =>
 			let conn;
 			try {
 				conn = await pool.getConnection();
-				await conn.query("update tr_User set scoreTotal = scoreTotal + 100 where idUser = ?", [jwtDecoded.idUser]);
+				await conn.query("update tr_User set scoreTotal = scoreTotal + 1 where idUser = ?", [jwtDecoded.idUser]);
 				const rows = await conn.query("select scoreTotal from tr_User where idUser = ?", [jwtDecoded.idUser]);
 				ws.send(JSON.stringify({action: "clickResult", success: true, scoreTotal: rows[0].scoreTotal}));
 			} catch (err) {
@@ -205,10 +205,10 @@ const startRandomRenderLoop = () => {
 
 const notifyUser = (idUser, payload) => 
 {
-	if (sessionsUsersId.has(idUser));
+	if (sessionsUsersId.has(idUser))
 	{
-		const anUser = sessionsUsersId.get(idUser);
-        anUser.ws.send(JSON.stringify(payload));
+		const ws = sessionsUsersId.get(idUser);
+        ws.send(JSON.stringify(payload));
 	}
 };
 
