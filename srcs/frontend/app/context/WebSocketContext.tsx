@@ -3,7 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 
-const WS_URL = 'ws://localhost:8080';
+function getWsUrl() {
+	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+	return `${protocol}//${window.location.host}/ws/`;
+}
 
 type ActionPayload = Record<string, unknown>;
 type ActionListener = (payload: ActionPayload) => void;
@@ -40,7 +43,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 		if (!isAuthenticated || !token)
 			return;
 
-		const socket = new WebSocket(WS_URL);
+		const socket = new WebSocket(getWsUrl());
 		socketRef.current = socket;
 
 		socket.onopen = () => {

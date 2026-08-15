@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Friend } from '../types';
 
-const IMAGE_BASE = 'http://localhost:8080/uploads';
+const IMAGE_BASE = '/uploads';
 
 type FriendListItemProps = {
 	friend: Friend;

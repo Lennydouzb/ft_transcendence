@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { fetchGetUser, fetchUpdateUserImage, fetchDeleteUserImage } from '../api/api';
 
-const IMAGE_BASE = 'http://localhost:8080/uploads';
+const IMAGE_BASE = '/uploads';
 
 type UserProfile = {
 	idUser: number;
