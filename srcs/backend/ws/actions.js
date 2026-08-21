@@ -127,6 +127,12 @@ const manageAuth = (ws, args) =>
 			token
 		});
 		sessionsUsersId.set(jwtDecoded.idUser, ws);
+		if (gameActive === 1)
+		{
+			ws.send(JSON.stringify({
+				action: "spawn"
+			}));
+		}
 	} catch (err) {
 		ws.close(4001, "Invalid token");
 	}
