@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 							throw new Error('User not found in DB');
 						}
 						setToken(stored);
-						setUser(decoded.user);
+						setUser({ idUser: decoded.user.idUser, name: data[0].name });
 					} catch {
 						localStorage.removeItem('token');
 						setToken(null);

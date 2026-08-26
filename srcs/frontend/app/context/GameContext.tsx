@@ -5,6 +5,11 @@ import { useWebSocket } from './WebSocketContext';
 import { useAuth } from './AuthContext';
 import { fetchGetUser } from '../api/api';
 
+type Position = {
+	x: number;
+	y: number;
+};
+
 type Feedback = {
 	message: string;
 	success: boolean;
@@ -54,7 +59,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 				if (found && typeof found.scoreTotal === 'number')
 					setScore(found.scoreTotal);
 			})
-			.catch(() => {});
+			.catch(() => { });
 	}, [user]);
 
 	useEffect(() => {
