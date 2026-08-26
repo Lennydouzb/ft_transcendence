@@ -5,7 +5,7 @@ export default function PrivacyPage() {
       <p className="text-sm opacity-70 mb-8">Last updated: August 26, 2026, 18:30</p>
 
       <section className="mb-6">
-        <h2 className="text-lg font-semibold mb-2">1. Introduction</h2>
+        <h2 className="text-lg font-semibold mb-2">1. Introducfion</h2>
         <p className="mb-2">
           This Privacy Policy explains what information we collect when you use this application
           (the &quot;Service&quot;), how it is used, and how it is protected. This Service is an
