@@ -280,12 +280,17 @@ app.post('/api/createUser', async (req, res) => {
 	if (!nameA) {
 		return res.status(400).json({ success: false, message: "name is required" });
 	}
+	if (nameA.length > 16) {
+		return res.status(400).json({ success: false, message: "name is too long" });
+	}
 	if (!password) {
 		return res.status(400).json({ success: false, message: "password is required" });
 	}
 	if (!mail) {
 		return res.status(400).json({ success: false, message: "mail is required" });
 	}
+	if (mail.length > 32) {
+		return res.status(400).json({ success: false, message: "mail is too long" });
 	let conn;
 	try {
 		conn = await pool.getConnection();
