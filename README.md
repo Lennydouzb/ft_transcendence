@@ -100,6 +100,44 @@ In this subject, points are counted as **Major = 2 pts** and **Minor = 1 pt**.
 | Module of choice 1 | Minor | 1 | ldesboui, edi-maio | Usage of jwt tokens to manage authentication |
 | **Total** | | 17 | | |
 
+## Browser compatibility
+
+This module (Minor) extends the application's compatibility to additional browsers.
+
+### Supported browsers
+
+| Browser     | Tested version                  | Status    |
+|-------------|----------------------------------|-----------|
+| Firefox     | 130+                               | Supported |
+| Zen Browser | latest version (Firefox-based)     | Supported |
+
+### Features tested on each browser
+
+- [ ] Authentication / login (JWT, sessions)
+- [ ] WebSocket (real-time chat, notifications)
+- [ ] Real-time gameplay (Canvas/WebGL rendering, keyboard input)
+- [ ] SPA navigation (Next.js routing)
+- [ ] Responsive design / UI display
+- [ ] Avatar upload and display
+- [ ] Dark mode (`prefers-color-scheme`)
+
+### Known browser-specific limitations
+
+> To be completed as testing progresses
+
+- **Firefox**: some CSS animations or transitions may render slightly differently depending on the front-end stack used.
+- **Zen Browser**: since it is built on the Firefox engine (Gecko), behavior is largely identical to Firefox; any differences mainly come from the browser's own interface (sidebar, workspaces) rather than actual web rendering.
+
+### UI/UX consistency
+
+Styling is handled with Tailwind CSS v4, compiled to standard CSS at build time via PostCSS. CSS custom properties (`@theme inline`) are used for design tokens (colors, fonts) and `prefers-color-scheme` for automatic dark mode support — both are natively supported by the Gecko engine used in Firefox and Zen. This ensures:
+- Identical visual rendering (layout, fonts, colors)
+- Identical behavior of interactive components (buttons, forms, modals)
+- A smooth and consistent experience across Firefox and Zen, including dark mode
+
+### Testing method
+
+Tests were performed manually on Firefox and Zen Browser, covering all core application features (authentication, chat, gameplay, navigation, and dark mode).
 
 ## Individual Contributions
 
