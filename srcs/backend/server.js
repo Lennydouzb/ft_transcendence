@@ -384,6 +384,10 @@ app.put('/api/updateUserName', async (req, res) => {
 	if (!name) {
 		return res.status(400).json({ success: false, message: "name is required" });
 	}
+	if (name.length > 16)
+	{
+		return res.status(400).json({ success: false, message: "name too long" });
+	}
 	try{
 		const jwtDecoded = jwt.verify(token, SECRET);
 		let conn;
