@@ -12,7 +12,7 @@ export default function ScoreDisplay() {
 	return (
 		<Link
 			href="/score"
-			className="rounded bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200"
+			className="rounded bg-gray-100 px-3 py-1 text-sm font-medium text-gray-900 hover:bg-gray-200"
 		>
 			Score : {score}
 		</Link>

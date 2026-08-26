@@ -54,7 +54,7 @@ export default function ScorePage() {
 					{ranking.map((u, index) => (
 						<li
 							key={u.idUser}
-							className={`flex items-center justify-between rounded px-3 py-2 text-sm ${
+							className={`flex items-center justify-between rounded px-3 py-2 text-sm text-gray-900 ${
 								u.idUser === user?.idUser ? 'bg-blue-100 font-semibold' : 'bg-gray-50'
 							}`}
 						>
