@@ -33,7 +33,7 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 				const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
 				setFriends(deduped);
 			})
-			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
+			.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
 			.finally(() => setLoading(false)); 
 		});
 
@@ -46,7 +46,7 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 				const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
 				setFriends(deduped);
 			})
-			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
+			.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
 			.finally(() => setLoading(false));
 		});
 	}, [token, refreshKey, subscribe]);
@@ -60,7 +60,7 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 			const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
 			setFriends(deduped);
 		})
-		.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
+		.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
 		.finally(() => setLoading(false));
 	}, [token, refreshKey]);
 
@@ -74,10 +74,10 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 			setFriends((prev) => prev.filter((f) => f.idUser !== idUser));
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 404) {
-				// déjà retiré côté serveur (ex: l'autre personne l'a fait de son côté) : on aligne juste l'affichage
+				// already removed server-side (e.g. the other person did it on their side): we just align the display
 				setFriends((prev) => prev.filter((f) => f.idUser !== idUser));
 			} else {
-				setRemoveError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+				setRemoveError(err instanceof Error ? err.message : 'Error while removing');
 			}
 		} finally {
 			setRemovingId(null);
@@ -85,7 +85,7 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 	}
 
 	if (loading)
-		return <p className="p-3 text-sm text-gray-500">Chargement...</p>;
+		return <p className="p-3 text-sm text-gray-500">Loading...</p>;
 	if (error)
 		return <p className="p-3 text-sm text-red-600">{error}</p>;
 
@@ -93,7 +93,7 @@ export default function FriendsList({ refreshKey, selectedId, onSelect }: Friend
 		<div className="flex flex-col gap-1 overflow-y-auto p-2">
 		{removeError && <p className="px-1 text-xs text-red-600">{removeError}</p>}
 		{friends.length === 0 ? (
-			<p className="p-3 text-sm text-gray-500">Pas encore d&apos;amis</p>
+			<p className="p-3 text-sm text-gray-500">No friends yet</p>
 		) : (
 		friends.map((friend) => (
 			<FriendListItem

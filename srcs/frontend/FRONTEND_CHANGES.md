@@ -1,19 +1,19 @@
-# Journal de session — ce qu'on a fait et pourquoi
+# Session journal — what we did and why
 
-Ce fichier résume les changements faits pendant cette session de travail sur le front, avec pour chacun : le problème observé, la cause réelle, le fix appliqué, et le concept général à retenir pour la prochaine fois que tu croises un bug du même genre.
+This file summarizes the changes made during this work session on the frontend, with for each: the observed problem, the actual cause, the fix applied, and the general concept to remember next time you run into a similar bug.
 
-Contexte : ces changements arrivent juste après un merge de Lenny sur le back (branche `testLenny`). On est parti de `srcs/backend/BACKEND_TODO.md` (le contrat front/back) pour voir ce que le merge avait débloqué, cassé, ou laissé de côté.
+Context: these changes come right after Lenny merged onto the backend (`testLenny` branch). We started from `srcs/backend/BACKEND_TODO.md` (the front/back contract) to see what the merge had unblocked, broken, or left aside.
 
 ---
 
-## 1. `app/api/api.ts` — `fetchFriends` envoyait la mauvaise méthode HTTP
+## 1. `app/api/api.ts` — `fetchFriends` sent the wrong HTTP method
 
-### Symptôme
-La liste d'amis (`FriendsList.tsx`) affichait "Erreur de chargement" au lieu de charger.
+### Symptom
+The friends list (`FriendsList.tsx`) showed "Loading error" instead of loading.
 
 ### Cause
 ```ts
-// avant
+// before
 export async function fetchFriends(token: string)
 {
 	return callBackend('/friends', {
@@ -21,13 +21,13 @@ export async function fetchFriends(token: string)
 	});
 }
 ```
-Aucune `method` n'était précisée. Or `fetch()` (et donc `callBackend`, notre wrapper dans ce fichier) part en `GET` par défaut quand `method` n'est pas fourni. Côté back, la route est déclarée avec `app.post('/api/friends', ...)` dans `server.js`.
+No `method` was specified. But `fetch()` (and therefore `callBackend`, our wrapper in this file) defaults to `GET` when `method` isn't provided. On the backend side, the route is declared with `app.post('/api/friends', ...)` in `server.js`.
 
-**Point clé à comprendre** : Express ne fait aucune correspondance entre méthodes HTTP. `app.post('/api/friends', ...)` ne répond **qu'aux requêtes POST** sur cette URL. Une requête GET sur la même URL tombe dans le vide et Express répond `404 Not Found` — pas une erreur 500, pas un message clair, juste "cette route n'existe pas" de son point de vue. C'est pour ça que l'erreur ne pointait vers rien d'évident : le bug n'était pas dans la logique, il était dans le **contrat** entre front et back (quelle URL + quelle méthode + quel format).
+**Key point to understand**: Express doesn't do any matching across HTTP methods. `app.post('/api/friends', ...)` responds **only to POST requests** on that URL. A GET request on the same URL falls into a void and Express responds `404 Not Found` — not a 500 error, not a clear message, just "this route doesn't exist" from its point of view. That's why the error didn't point to anything obvious: the bug wasn't in the logic, it was in the **contract** between front and back (which URL + which method + which format).
 
 ### Fix
 ```ts
-// après
+// after
 export async function fetchFriends(token: string)
 {
 	return callBackend('/friends', {
@@ -37,29 +37,29 @@ export async function fetchFriends(token: string)
 }
 ```
 
-### À retenir
-- Le verbe HTTP (`GET`/`POST`/`PUT`/`DELETE`) fait partie de l'URL de la route au même titre que le chemin. Change l'un sans l'autre et tu casses tout, silencieusement.
-- Pour déboguer ce genre de souci : ouvre les **DevTools → onglet Network**, regarde la colonne `Method` et le `Status` de la requête. Un `404` sur une route que tu sais exister côté back = 9 fois sur 10 un problème de méthode ou de chemin, pas de logique métier.
-- Idéalement `/api/friends` (une simple lecture) devrait être un `GET` — c'est plus la convention REST. Mais comme on ne touche pas au back cette fois, on s'est aligné sur ce qui existe réellement plutôt que sur ce qui serait "propre".
+### Takeaway
+- The HTTP verb (`GET`/`POST`/`PUT`/`DELETE`) is part of the route's URL just as much as the path. Change one without the other and you break everything, silently.
+- To debug this kind of issue: open **DevTools → Network tab**, look at the `Method` column and the request's `Status`. A `404` on a route you know exists on the backend is 9 times out of 10 a method or path problem, not business logic.
+- Ideally `/api/friends` (a simple read) should be a `GET` — that's more the REST convention. But since we're not touching the backend this time, we aligned with what actually exists rather than what would be "clean".
 
 ---
 
-## 2. `app/page.tsx` — la page d'accueil ne compilait plus du tout
+## 2. `app/page.tsx` — the home page stopped compiling entirely
 
-### Symptôme
-`http://localhost:3000/` affichait une erreur de build Next.js : `Export fetchCreateGame doesn't exist in target module`. Et cette erreur restait affichée même en naviguant vers `/login`.
+### Symptom
+`http://localhost:3000/` showed a Next.js build error: `Export fetchCreateGame doesn't exist in target module`. And this error stayed displayed even when navigating to `/login`.
 
 ### Cause
-L'ancien `app/page.tsx` était un panneau de test d'API fait à la va-vite (commentaire `//@TODO AI GENERATED FOR TESTS PURPOSES` en tête de fichier). Il appelait `api.fetchCreateGame(...)` et `api.fetchcreateQuestions(...)`, deux fonctions qui existent bien dans `api.ts` mais **commentées** (désactivées) :
+The old `app/page.tsx` was a quickly-thrown-together API test panel (comment `//@TODO AI GENERATED FOR TESTS PURPOSES` at the top of the file). It called `api.fetchCreateGame(...)` and `api.fetchcreateQuestions(...)`, two functions that do exist in `api.ts` but are **commented out** (disabled):
 ```ts
 /*export async function fetchCreateGame(nameA: string, token: string) { ... }*/
 ```
-`import * as api from './api/api'` importe le module entier ; comme `fetchCreateGame` n'y est pas réellement exporté, Turbopack (le compilateur de Next.js) refuse de builder la page — c'est une erreur statique, détectée à la compilation, pas à l'exécution.
+`import * as api from './api/api'` imports the entire module; since `fetchCreateGame` isn't actually exported from it, Turbopack (Next.js's compiler) refuses to build the page — this is a static error, caught at compile time, not at runtime.
 
-**Point clé à comprendre** : dans l'App Router de Next.js, chaque fichier `app/**/page.tsx` correspond à une route. Mais l'overlay d'erreur du dev server (l'écran rouge plein écran) est injecté globalement dans la session du navigateur — une fois affiché, il peut rester visible même en changeant de route tant que le build reste cassé quelque part, ce qui donne l'impression trompeuse que "tout" est cassé.
+**Key point to understand**: in Next.js's App Router, each `app/**/page.tsx` file corresponds to a route. But the dev server's error overlay (the full-screen red screen) is injected globally into the browser session — once shown, it can stay visible even when changing routes as long as the build stays broken somewhere, which gives the misleading impression that "everything" is broken.
 
 ### Fix
-Le fichier ne servait de toute façon à rien en l'état (cassé, et même corrigé ce n'était qu'un outil de debug, pas une vraie page d'accueil). Remplacé par une redirection, en réutilisant **exactement le même pattern** que `app/dashboard/page.tsx` utilisait déjà :
+The file wasn't useful in its current state anyway (broken, and even fixed it was just a debug tool, not a real home page). Replaced with a redirect, reusing **exactly the same pattern** that `app/dashboard/page.tsx` already used:
 ```tsx
 'use client';
 
@@ -79,45 +79,45 @@ export default function Home() {
 
 	return (
 		<main className="flex min-h-screen items-center justify-center">
-			<p>Chargement...</p>
+			<p>Loading...</p>
 		</main>
 	);
 }
 ```
 
-### À retenir
-- `useAuth()` expose `loading` (le temps de vérifier le `token` dans `localStorage` au premier rendu) et `isAuthenticated`. Le `useEffect` attend que `loading` soit `false` avant de décider où rediriger — sinon on redirigerait vers `/login` par erreur, une fraction de seconde avant que le token stocké soit lu.
-- `router.push(...)` (de `next/navigation`) fait une navigation **côté client**, sans recharger toute la page — contrairement à changer `window.location`.
-- Réutiliser un pattern déjà présent ailleurs dans le code (ici copié de `dashboard/page.tsx`) plutôt que d'en inventer un nouveau : ça garde le code cohérent, et si un jour on change la logique d'auth, on sait qu'il n'y a qu'un seul pattern à corriger partout.
-- L'ancien contenu est récupérable via git si besoin un jour : `git show HEAD:srcs/frontend/app/page.tsx` (avant ce commit).
+### Takeaway
+- `useAuth()` exposes `loading` (the time it takes to check the `token` in `localStorage` on first render) and `isAuthenticated`. The `useEffect` waits for `loading` to be `false` before deciding where to redirect — otherwise we'd redirect to `/login` by mistake, a fraction of a second before the stored token is read.
+- `router.push(...)` (from `next/navigation`) does a **client-side** navigation, without reloading the whole page — unlike changing `window.location`.
+- Reuse a pattern already present elsewhere in the code (here copied from `dashboard/page.tsx`) rather than inventing a new one: it keeps the code consistent, and if the auth logic ever changes, we know there's only one pattern to fix everywhere.
+- The old content can be recovered via git if ever needed: `git show HEAD:srcs/frontend/app/page.tsx` (before this commit).
 
 ---
 
-## 3. `docker/mariadb/tools/start.sh` — hors du front, mais il fallait le savoir
+## 3. `docker/mariadb/tools/start.sh` — outside the frontend, but worth knowing about
 
-Ce fichier n'est pas dans `srcs/frontend`, mais il bloquait **toute** feature front liée aux amis ou au chat, donc autant comprendre ce qui s'est passé.
+This file isn't in `srcs/frontend`, but it was blocking **every** frontend feature related to friends or chat, so it's worth understanding what happened.
 
-### Symptôme
-Après avoir corrigé le point 1, la requête `POST /api/friends` répondait enfin (fini le 404) mais renvoyait une erreur base de données :
+### Symptom
+After fixing item 1, the `POST /api/friends` request finally responded (no more 404) but returned a database error:
 ```
 Table 'ft_transcendence.tr_Friend' doesn't exist
 ```
 
 ### Cause
-Le script qui crée le schéma SQL au premier démarrage du container MariaDB exécute toutes les `CREATE TABLE` dans **une seule commande** (`mariadb -e "..."`). La table `tr_Message` avait une contrainte `FOREIGN KEY(idUser)` alors que la colonne `idUser` n'était **jamais déclarée** dans cette table :
+The script that creates the SQL schema on the MariaDB container's first startup runs all the `CREATE TABLE` statements in **a single command** (`mariadb -e "..."`). The `tr_Message` table had a `FOREIGN KEY(idUser)` constraint even though the `idUser` column was **never declared** in that table:
 ```sql
 CREATE TABLE tr_Message(
    idMessage INT AUTO_INCREMENT,
    content VARCHAR(100) NOT NULL,
    sendDate DATETIME DEFAULT CURRENT_TIMESTAMP,
    PRIMARY KEY(idMessage),
-   FOREIGN KEY(idUser) REFERENCES tr_User(idUser)  -- idUser n'existe pas plus haut !
+   FOREIGN KEY(idUser) REFERENCES tr_User(idUser)  -- idUser doesn't exist above!
 );
 ```
-Le client `mariadb` s'arrête à la première instruction qui échoue et n'exécute pas les suivantes du même script. `tr_User` (avant `tr_Message` dans le fichier) se créait donc normalement — d'où le fait que login/inscription marchaient — mais `tr_Message`, puis `tr_Friend`, puis `tr_Chat` (toutes les instructions après l'échec) n'étaient **jamais créées**.
+The `mariadb` client stops at the first statement that fails and doesn't run the following ones in the same script. `tr_User` (before `tr_Message` in the file) was therefore created normally — which is why login/registration worked — but `tr_Message`, then `tr_Friend`, then `tr_Chat` (every statement after the failure) were **never created**.
 
 ### Fix
-Ajout de la colonne manquante :
+Added the missing column:
 ```sql
 CREATE TABLE tr_Message(
    idMessage INT AUTO_INCREMENT,
@@ -129,31 +129,31 @@ CREATE TABLE tr_Message(
 );
 ```
 
-### À retenir
-- Une `FOREIGN KEY` référence une colonne — si cette colonne n'existe pas dans la table elle-même, la création de la table échoue (une FK ne "crée" pas la colonne, elle contraint une colonne qui doit déjà être déclarée juste au-dessus).
-- Ce script (`start.sh`) ne s'exécute **qu'une fois**, au tout premier démarrage sur un volume MariaDB vide. Le modifier ne suffit donc pas : il faut recréer le volume avec `make clean && make` pour que le nouveau schéma soit appliqué (`make clean` supprime le dossier de données local, `make` relance les containers et rejoue `start.sh` sur une base vide).
-- Une erreur "table doesn't exist" ne veut pas forcément dire "on a oublié une table" — regarde toujours si une instruction *avant* dans le même script a pu échouer et bloquer tout le reste.
+### Takeaway
+- A `FOREIGN KEY` references a column — if that column doesn't exist in the table itself, table creation fails (an FK doesn't "create" the column, it constrains a column that must already be declared just above).
+- This script (`start.sh`) only runs **once**, on the very first startup on an empty MariaDB volume. Modifying it isn't enough by itself: the volume has to be recreated with `make clean && make` for the new schema to be applied (`make clean` removes the local data folder, `make` restarts the containers and replays `start.sh` on an empty database).
+- A "table doesn't exist" error doesn't necessarily mean "we forgot a table" — always check whether an earlier statement in the same script may have failed and blocked everything after it.
 
 ---
 
-## 4. `CLAUDE.md` (racine du projet)
+## 4. `CLAUDE.md` (project root)
 
-Mis à jour pour refléter l'état réel du code après le merge : la pile de contexts front (`Auth → WebSocket → Chat → Game`), le fait que le front bypass aussi le proxy nginx pour le WebSocket, et les bugs connus du back (`manageClick`, désalignement des noms d'action du mini-jeu, etc.). C'est un fichier de contexte pour les futures sessions de travail avec Claude Code, pas du code — pas besoin de le maîtriser, juste bon à savoir qu'il existe et qu'il reflète l'état réel (pas un objectif).
+Updated to reflect the actual state of the code after the merge: the frontend context stack (`Auth → WebSocket → Chat → Game`), the fact that the frontend also bypasses the nginx proxy for the WebSocket, and known backend bugs (`manageClick`, mini-game action name mismatch, etc.). This is a context file for future work sessions with Claude Code, not code — no need to master it, just good to know it exists and that it reflects actual state (not a goal).
 
 ---
 
-## 5. `app/components/FriendsList.tsx` — deux fois le même ami dans la liste
+## 5. `app/components/FriendsList.tsx` — same friend twice in the list
 
-### Symptôme
-`Encountered two children with the same key, '1'` — erreur React au rendu de la liste d'amis.
+### Symptom
+`Encountered two children with the same key, '1'` — React error when rendering the friends list.
 
 ### Cause
-`tr_Friend` a pour clé primaire le **couple** `(idUser, idUser_1)`, pas une paire non-ordonnée. Si "mini" ajoute "user" en ami (`INSERT (1, 2)`) et que "user" ajoute aussi "mini" (`INSERT (2, 1)`), ce sont deux lignes distinctes en base pour la même relation — rien côté back ne vérifie l'existence de la paire inverse avant d'insérer. La requête SQL de `/api/friends` fait un `JOIN ... ON (f.idUser = u.idUser OR f.idUser_1 = u.idUser)`, qui renvoie l'ami correspondant **une fois par ligne** de `tr_Friend` : avec les deux lignes, le même ami sort deux fois dans la réponse JSON.
+`tr_Friend`'s primary key is the **ordered pair** `(idUser, idUser_1)`, not an unordered pair. If "mini" adds "user" as a friend (`INSERT (1, 2)`) and "user" also adds "mini" (`INSERT (2, 1)`), these are two distinct rows in the database for the same relationship — nothing on the backend checks for the existence of the reverse pair before inserting. The SQL query for `/api/friends` does a `JOIN ... ON (f.idUser = u.idUser OR f.idUser_1 = u.idUser)`, which returns the matching friend **once per row** of `tr_Friend`: with both rows, the same friend comes out twice in the JSON response.
 
-React exige une `key` unique par élément de liste (`key={friend.idUser}`) pour savoir lequel a changé entre deux rendus — deux amis avec le même `idUser` cassent cette garantie et déclenchent l'avertissement/crash.
+React requires a unique `key` per list element (`key={friend.idUser}`) to know which one changed between two renders — two friends with the same `idUser` break this guarantee and trigger the warning/crash.
 
 ### Fix
-Dédoublonnage côté client, dans `FriendsList.tsx` :
+Client-side deduplication, in `FriendsList.tsx`:
 ```ts
 fetchFriends(token)
 	.then((data) => {
@@ -163,18 +163,18 @@ fetchFriends(token)
 	})
 ```
 
-### À retenir
-- `new Map(tableau.map((x) => [x.cléUnique, x]))` est le pattern standard en JS pour dédupliquer un tableau d'objets par une propriété : une `Map` ne peut pas avoir deux fois la même clé, donc la seconde entrée écrase la première. `Array.from(map.values())` reconvertit en tableau propre.
-- C'est un correctif d'**affichage**, pas de fond : la base contient toujours les deux lignes dupliquées. La vraie correction (empêcher l'insertion en double, ou `DISTINCT` côté SQL) doit se faire côté back — à signaler à Lenny.
-- Un message d'erreur React qui parle de `key` pointe presque toujours vers des données dupliquées en amont, pas vers un bug de rendu React lui-même.
+### Takeaway
+- `new Map(array.map((x) => [x.uniqueKey, x]))` is the standard JS pattern to deduplicate an array of objects by a property: a `Map` can't have the same key twice, so the second entry overwrites the first. `Array.from(map.values())` converts it back into a clean array.
+- This is a **display** fix, not a root fix: the database still contains both duplicate rows. The real fix (preventing duplicate insertion, or `DISTINCT` on the SQL side) should be done on the backend — flagged to Lenny.
+- A React error message mentioning `key` almost always points to duplicated data upstream, not to a bug in React's rendering itself.
 
 ---
 
-## 6. Bouton "retirer un ami" — nouvelle feature complète
+## 6. "Remove friend" button — complete new feature
 
-La route back `DELETE /api/removeFriend` existait déjà (voir `server.js`) mais rien côté front ne l'appelait. Trois fichiers touchés :
+The backend route `DELETE /api/removeFriend` already existed (see `server.js`) but nothing on the frontend called it. Three files touched:
 
-**`api.ts`** — nouvelle fonction, même forme que `fetchAddFriend` :
+**`api.ts`** — new function, same shape as `fetchAddFriend`:
 ```ts
 export async function fetchRemoveFriend(idUser: number, token: string)
 {
@@ -186,20 +186,20 @@ export async function fetchRemoveFriend(idUser: number, token: string)
 }
 ```
 
-**`FriendListItem.tsx`** — un bouton "Retirer" ajouté à côté du nom. Point technique important : avant, toute la ligne était un `<button>` (pour capter le clic de sélection). Le HTML **interdit d'imbriquer un `<button>` dans un autre `<button>`** — le navigateur "casse" silencieusement la structure si tu essaies. J'ai donc changé l'élément englobant en `<div role="button" tabIndex={0}>` (avec un `onKeyDown` pour garder Entrée/Espace utilisables au clavier, ce qu'un vrai `<button>` fait nativement), ce qui laisse la place à un vrai `<button>` "Retirer" à l'intérieur. Sur ce bouton, `e.stopPropagation()` empêche le clic de "remonter" jusqu'au `onClick` du parent (sinon cliquer sur "Retirer" sélectionnerait aussi l'ami en même temps).
+**`FriendListItem.tsx`** — a "Remove" button added next to the name. Important technical point: previously, the whole row was a `<button>` (to capture the selection click). HTML **forbids nesting a `<button>` inside another `<button>`** — the browser silently "breaks" the structure if you try. So I changed the wrapping element to `<div role="button" tabIndex={0}>` (with an `onKeyDown` to keep Enter/Space usable from the keyboard, which a real `<button>` does natively), which leaves room for a real "Remove" `<button>` inside. On this button, `e.stopPropagation()` prevents the click from "bubbling up" to the parent's `onClick` (otherwise clicking "Remove" would also select the friend at the same time).
 
-**`FriendsList.tsx`** — `handleRemove(idUser)` appelle `fetchRemoveFriend`, puis met à jour l'état local avec `setFriends((prev) => prev.filter((f) => f.idUser !== idUser))` plutôt que de refaire un appel réseau complet : la suppression est déjà confirmée par le serveur (on attend la réponse avant de filtrer), donc pas besoin de recharger toute la liste — c'est le même principe que `FriendSearchBar.handleAdd` utilise déjà pour retirer un résultat de recherche après ajout. Une erreur de suppression a son propre état (`removeError`), séparé de l'état `error` du chargement initial, pour ne pas faire disparaître toute la liste si une seule suppression échoue.
+**`FriendsList.tsx`** — `handleRemove(idUser)` calls `fetchRemoveFriend`, then updates local state with `setFriends((prev) => prev.filter((f) => f.idUser !== idUser))` rather than doing a full network refetch: the removal is already confirmed by the server (we wait for the response before filtering), so there's no need to reload the whole list — same principle already used by `FriendSearchBar.handleAdd` to remove a search result after adding. A removal error has its own state (`removeError`), separate from the initial-load `error` state, so a single failed removal doesn't make the whole list disappear.
 
-### À retenir
-- **Pas de `<button>` dans un `<button>`** : règle HTML à connaître, sinon le DOM rendu ne correspond pas à ce que tu as écrit en JSX et le comportement devient imprévisible.
-- **Mettre à jour l'état local après une confirmation serveur** plutôt que de tout recharger : plus rapide, moins de requêtes, et le pattern est déjà utilisé ailleurs dans ce code — le repérer et le réutiliser rend le code plus cohérent que d'inventer une nouvelle façon de faire à chaque feature.
+### Takeaway
+- **No `<button>` inside a `<button>`**: an HTML rule worth knowing, otherwise the rendered DOM doesn't match what you wrote in JSX and behavior becomes unpredictable.
+- **Update local state after server confirmation** rather than reloading everything: faster, fewer requests, and the pattern is already used elsewhere in this code — spotting it and reusing it keeps the code more consistent than inventing a new way for every feature.
 
 ---
 
-## 7. `api.ts` — `callBackend` faisait passer *toutes* les erreurs pour des crashs
+## 7. `api.ts` — `callBackend` was turning *every* error into a crash
 
-### Symptôme
-Chaque erreur "normale" renvoyée par le back (login raté, "Friendship not found", etc.) déclenchait l'overlay rouge plein écran de Next.js — la même apparence qu'un vrai crash — alors même que le composant appelant (`LoginPage`, `FriendsList`...) avait un `try/catch` qui gérait l'erreur proprement.
+### Symptom
+Every "normal" error returned by the backend (failed login, "Friendship not found", etc.) triggered Next.js's full-screen red overlay — the same appearance as a real crash — even though the calling component (`LoginPage`, `FriendsList`...) had a `try/catch` that handled the error cleanly.
 
 ### Cause
 ```ts
@@ -213,10 +213,10 @@ try {
 	throw error;
 }
 ```
-`console.error(...)` était appelé **avant** de relancer l'erreur vers l'appelant. Or Next.js en mode développement intercepte **tout** appel à `console.error`, où qu'il soit dans l'app, et affiche son overlay — indépendamment du fait que l'erreur soit ensuite catchée et affichée proprement plus haut dans l'arbre de composants. Ce `try/catch` ne changeait rien au comportement (il relançait la même erreur telle quelle), il ne servait qu'à générer ce bruit.
+`console.error(...)` was called **before** re-throwing the error to the caller. But Next.js in dev mode intercepts **every** call to `console.error`, wherever it is in the app, and shows its overlay — regardless of whether the error is then caught and displayed cleanly further up the component tree. This `try/catch` changed nothing about the behavior (it re-threw the same error as-is), it only served to generate this noise.
 
 ### Fix
-Suppression pure et simple du `try/catch` — si `fetch()` échoue, l'erreur remonte naturellement vers l'appelant sans avoir besoin d'un bloc qui se contente de la relancer :
+Plain and simple removal of the `try/catch` — if `fetch()` fails, the error naturally bubbles up to the caller without needing a block that just re-throws it:
 ```ts
 const response = await fetch(URL, {...options, headers});
 const data = await response.json().catch(() => null);
@@ -226,64 +226,64 @@ if (!response.ok) {
 return data;
 ```
 
-### À retenir
-- **`console.error` n'est pas neutre en dev sous Next.js** : ça déclenche l'overlay, même pour une erreur que ton code gère très bien par ailleurs. Ne logge en erreur que ce qui est *vraiment* inattendu (un bug), pas une réponse HTTP d'erreur normale (400/401/404/409) que l'UI est censée afficher à l'utilisateur.
-- Un `try { ... } catch (e) { throw e; }` qui ne fait rien d'autre que relancer l'erreur telle quelle est toujours inutile — une erreur non interceptée remonte déjà toute seule.
+### Takeaway
+- **`console.error` is not neutral in dev under Next.js**: it triggers the overlay, even for an error your code otherwise handles just fine. Only log as an error what's *actually* unexpected (a bug), not a normal error HTTP response (400/401/404/409) that the UI is meant to display to the user.
+- A `try { ... } catch (e) { throw e; }` that does nothing but re-throw the error as-is is always useless — an uncaught error already bubbles up on its own.
 
-## 8. Bouton "Retirer" — deux causes possibles pour "Friendship not found"
+## 8. "Remove" button — two possible causes for "Friendship not found"
 
-### Cause A — double-clic (même onglet)
-Un double-clic (ou deux clics rapprochés) envoie deux requêtes `DELETE` : la première réussit et supprime la ligne en base, la seconde arrive trop tard et ne trouve plus rien à supprimer.
+### Cause A — double-click (same tab)
+A double-click (or two clicks close together) sends two `DELETE` requests: the first succeeds and removes the row from the database, the second arrives too late and finds nothing left to delete.
 
-**Fix** : `FriendsList.tsx` retient l'`idUser` en cours de suppression (`removingId`) ; `handleRemove` ignore un appel si cet ami est déjà en cours de suppression, et `FriendListItem.tsx` désactive visuellement le bouton (`disabled={removing}`, texte "...") pendant la requête.
+**Fix**: `FriendsList.tsx` tracks the `idUser` currently being removed (`removingId`); `handleRemove` ignores a call if this friend is already being removed, and `FriendListItem.tsx` visually disables the button (`disabled={removing}`, text "...") during the request.
 
-### Cause B — désynchronisation entre deux sessions (le vrai cas rencontré)
-Scénario réel : "mini" retire "user" de sa liste. "user", dans un autre onglet/navigateur, avait déjà chargé sa propre liste **avant** cette suppression — son état React garde "mini" comme ami jusqu'à un rechargement. Rien ne le prévient en temps réel du changement (il n'y a pas de broadcast WebSocket sur la suppression d'amitié, contrairement à `ppChange` par exemple). Quand "user" clique ensuite sur "Retirer" pour "mini", la requête vise une amitié qui n'existe déjà plus côté serveur → 404 légitime.
+### Cause B — desync between two sessions (the actual case encountered)
+Real scenario: "mini" removes "user" from their list. "user", in another tab/browser, had already loaded their own list **before** this removal — their React state keeps "mini" as a friend until a reload. Nothing warns them of the change in real time (there's no WebSocket broadcast on friendship removal, unlike `ppChange` for instance). When "user" then clicks "Remove" for "mini", the request targets a friendship that no longer exists on the server → legitimate 404.
 
-Le vrai fix (prévenir "user" en direct) demande un broadcast WS côté back — hors périmètre front. Côté front, on peut seulement rendre l'action **idempotente à l'affichage** : si le serveur répond "déjà supprimé", le résultat voulu par l'utilisateur (ne plus être ami) est de toute façon atteint, donc pas la peine de lui montrer une erreur.
+The real fix (notifying "user" live) requires a WS broadcast on the backend — out of frontend scope. On the frontend, we can only make the action **idempotent from a display standpoint**: if the server responds "already removed", the outcome the user wanted (no longer being friends) is achieved either way, so there's no point showing them an error.
 
-**Fix** : `api.ts` a maintenant une classe `ApiError extends Error` qui transporte le code HTTP (`err.status`) en plus du message. `callBackend` lève une `ApiError` au lieu d'une `Error` simple. Dans `handleRemove` :
+**Fix**: `api.ts` now has an `ApiError extends Error` class that carries the HTTP code (`err.status`) in addition to the message. `callBackend` throws an `ApiError` instead of a plain `Error`. In `handleRemove`:
 ```ts
 } catch (err) {
 	if (err instanceof ApiError && err.status === 404) {
-		// déjà retiré côté serveur : on aligne juste l'affichage, pas d'erreur affichée
+		// already removed server-side: we just align the display, no error shown
 		setFriends((prev) => prev.filter((f) => f.idUser !== idUser));
 	} else {
-		setRemoveError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+		setRemoveError(err instanceof Error ? err.message : 'Error while removing');
 	}
 }
 ```
 
-### À retenir
-- **Le message d'erreur seul ne suffit pas toujours à décider quoi faire** — il faut souvent le code HTTP. `data?.error || data?.message` donnait un texte, mais pas de moyen fiable de savoir "est-ce un 404 ou un 500 ?" sans étendre `Error`. Une classe d'erreur personnalisée (`ApiError`) qui porte des données structurées (ici `status`) est le pattern standard pour ça en JS/TS.
-- **Toute action réseau déclenchée par un clic devrait se protéger contre le double-clic** (désactiver le déclencheur pendant la requête).
-- **Une erreur "ressource introuvable" sur une action de suppression n'est pas toujours une vraie erreur pour l'utilisateur** — si son intention (ne plus être ami) est de toute façon atteinte, mieux vaut aligner silencieusement l'affichage que de l'inquiéter avec un message rouge.
-- Cas plus large à garder en tête : **sans notification temps réel, deux sessions ouvertes en parallèle peuvent diverger.** Ça vaut pour les amis, mais potentiellement pour d'autres écrans partagés plus tard — un rechargement manuel (ou un futur broadcast WS) reste le seul moyen de resynchroniser tant que ce n'est pas géré nativement.
+### Takeaway
+- **The error message alone isn't always enough to decide what to do** — the HTTP code is often needed too. `data?.error || data?.message` gave text, but no reliable way to know "is this a 404 or a 500?" without extending `Error`. A custom error class (`ApiError`) carrying structured data (here `status`) is the standard pattern for this in JS/TS.
+- **Any network action triggered by a click should guard against double-clicking** (disable the trigger during the request).
+- **A "resource not found" error on a deletion action isn't always a real error for the user** — if their intent (no longer being friends) is achieved either way, it's better to silently align the display than to alarm them with a red message.
+- Broader case to keep in mind: **without real-time notification, two sessions open in parallel can drift apart.** This applies to friends, but potentially to other shared screens later — a manual reload (or a future WS broadcast) remains the only way to resync until it's handled natively.
 
 ---
 
-## 9. `FriendSearchBar.tsx` — deux trous qui se combinaient pour crasher
+## 9. `FriendSearchBar.tsx` — two holes that combined to crash
 
-### Symptôme
-`Runtime ApiError: Cannot add yourself as a friend` — une erreur **non catchée**, affichée comme un vrai crash par Next.js (contrairement aux erreurs gérées ailleurs qui s'affichent en texte rouge dans l'UI).
+### Symptom
+`Runtime ApiError: Cannot add yourself as a friend` — an **uncaught** error, displayed as a real crash by Next.js (unlike errors handled elsewhere that show up as red text in the UI).
 
-### Cause (deux bugs distincts, l'un révélant l'autre)
+### Cause (two distinct bugs, one revealing the other)
 
-**Bug 1 : `GET /api/users` renvoie tout le monde, toi y compris**, et `handleSearch` ne filtrait jamais son propre compte hors des résultats :
+**Bug 1: `GET /api/users` returns everyone, including yourself**, and `handleSearch` never filtered your own account out of the results:
 ```ts
 setResults(users.filter((user) => user.name.toLowerCase().includes(lowerQuery)));
 ```
-Si ta recherche matchait aussi ton propre nom, tu te retrouvais dans tes propres résultats de recherche, avec un bouton "Ajouter" bien réel dessus.
+If your search also matched your own name, you'd end up in your own search results, with a very real "Add" button on it.
 
-**Bug 2 : `handleAdd` n'avait aucun `try/catch`** :
+**Bug 2: `handleAdd` had no `try/catch`**:
 ```ts
 async function handleAdd(idUser: number) {
 	if (!token) return;
-	await fetchAddFriend(idUser, token);   // si ça throw, personne ne l'attrape
+	await fetchAddFriend(idUser, token);   // if this throws, nobody catches it
 	...
 }
 ```
-Cliquer "Ajouter" sur soi-même déclenche bien la vérification côté back (`server.js` : `if (jwtDecoded.idUser === idUser) return res.status(400).json({message: "Cannot add yourself as a friend"})`), qui est correcte — mais comme rien ne catchait l'erreur renvoyée, elle remontait jusqu'à React sous forme d'exception non gérée, d'où le "Runtime Error" plein écran au lieu d'un simple message.
+Clicking "Add" on yourself does correctly trigger the backend check (`server.js`: `if (jwtDecoded.idUser === idUser) return res.status(400).json({message: "Cannot add yourself as a friend"})`), which is correct — but since nothing caught the returned error, it bubbled up to React as an unhandled exception, hence the full-screen "Runtime Error" instead of a simple message.
 
 ### Fix
 ```ts
@@ -301,68 +301,68 @@ async function handleAdd(idUser: number) {
 		setResults((prev) => prev.filter((u) => u.idUser !== idUser));
 		onFriendAdded();
 	} catch (err) {
-		setError(err instanceof Error ? err.message : "Impossible d'ajouter cet ami");
+		setError(err instanceof Error ? err.message : 'Unable to add this friend');
 	}
 }
 ```
-(le nom de variable dans les `.map`/`.filter` locaux a été renommé de `user` à `u` pour ne pas masquer le `user` importé de `useAuth()` — un problème classique de scope en JS : une variable locale du même nom qu'une variable englobante la rend inaccessible dans ce bloc)
+(the variable name in the local `.map`/`.filter` calls was renamed from `user` to `u` to avoid shadowing the `user` imported from `useAuth()` — a classic JS scoping issue: a local variable with the same name as an enclosing variable makes it inaccessible within that block)
 
-### À retenir
-- **Un bug d'affichage anodin (soi-même dans une liste de recherche) peut devenir un crash** dès qu'il croise un endroit sans gestion d'erreur. Corriger uniquement le filtrage aurait suffi ici, mais le vrai problème de fond — `handleAdd` sans `try/catch` — restait un risque pour n'importe quelle autre erreur possible de `/api/addFriend` (déjà ami, jwt expiré, etc.), pas seulement celle-ci.
-- **Toute fonction `async` déclenchée par un clic doit avoir son propre `try/catch`** si tu veux contrôler comment l'erreur s'affiche à l'utilisateur — sinon c'est Next.js/React qui décide à ta place (et ça décide "crash plein écran").
-
----
-
-## 10. Synchronisation temps réel — pris en charge côté back
-
-Le coéquipier va ajouter un broadcast WebSocket quand une amitié est supprimée (le point "Cause B" de la section 8). Une fois ça fait, plus besoin de compter sur le rattrapage silencieux du 404 pour masquer le décalage — les deux côtés seront notifiés en direct. On garde quand même la gestion du 404 en place : elle ne coûte rien et protège contre d'autres cas de désynchronisation (latence réseau, onglet resté ouvert plusieurs jours, etc.).
-
-## 11. Chat : texte trop long qui déborde de la bulle
-
-### Symptôme
-Un message sans espaces (ex: une longue suite de la même lettre) dépasse horizontalement de la bulle bleue au lieu de passer à la ligne.
-
-### Cause
-`ChatMessageItem.tsx` limitait la largeur de la bulle (`max-w-xs`) mais ne disait rien sur *comment* casser le texte à l'intérieur. Par défaut en CSS, le texte ne se coupe qu'aux espaces (`overflow-wrap: normal`) — un mot sans espace, aussi long soit-il, est traité comme une seule unité insécable et pousse en dehors de son conteneur plutôt que de se couper.
-
-### Fix
-Ajout de la classe Tailwind `break-words` (= `overflow-wrap: break-word` en CSS) sur la bulle, qui autorise la coupure à l'intérieur d'un mot quand c'est la seule façon de tenir dans la largeur disponible.
-
-### À retenir
-- `max-width` seul ne protège pas d'un débordement de texte — il faut aussi une règle de coupure (`overflow-wrap`/`word-break`) pour le contenu que l'utilisateur ne contrôle pas (ici, n'importe qui peut taper une suite de caractères sans espace).
-
-## 12. Chat : limite de 100 caractères ajoutée côté front
-
-Le back rejette déjà les messages de plus de 100 caractères (`ws/actions.js`, `manageMsg`) — silencieusement, sans réponse claire. Côté front (`ChatInput.tsx`), ajout de `maxLength={100}` sur l'`<input>` (empêche physiquement de taper plus) et d'un petit compteur `content.length/100` sous le champ, pour que l'utilisateur comprenne la limite avant d'atteindre un message qui partirait dans le vide.
-
-**Pourquoi dupliquer une règle déjà présente côté back ?** Ce n'est pas de la redondance inutile : le back reste la seule source de vérité pour la sécurité/l'intégrité des données (il doit re-vérifier même si le front a déjà limité, un client malveillant peut envoyer n'importe quoi directement au WebSocket). La limite côté front, elle, sert uniquement l'expérience utilisateur — éviter de taper un message qui semble parti mais qui n'arrivera jamais.
-
-## 13. Barre de recherche qui chevauchait la fenêtre de chat
-
-### Symptôme
-Le bouton "Chercher" et le champ de recherche débordaient de la colonne de gauche et venaient se superposer visuellement au nom de l'ami affiché dans la fenêtre de chat à droite.
-
-### Cause
-Un piège classique de flexbox, à connaître une bonne fois pour toutes : **un `<input>` dans un conteneur flex a une largeur minimale implicite** (`min-width: auto`), qui l'empêche de rétrécir en dessous de sa taille "naturelle" même avec la classe `flex-1`. Dans `FriendSearchBar.tsx`, la ligne `<input className="flex-1 ...">` + le bouton "Chercher" avaient donc besoin de plus de largeur que les `256px` (`w-64`) alloués à la colonne de gauche (`<aside>` dans `DashboardLayout.tsx`). Comme `<aside>` n'avait pas de `overflow-hidden`, ce débordement n'était pas coupé — il continuait de s'afficher par-dessus le contenu voisin (`<main>`) au lieu de disparaître ou de forcer un retour à la ligne.
-
-### Fix
-- `FriendSearchBar.tsx` : `min-w-0` ajouté sur l'`<input>` — autorise explicitement l'élément à rétrécir en dessous de sa taille naturelle, pour que `flex-1` fonctionne comme prévu.
-- `ChatInput.tsx` : même `min-w-0` ajouté par précaution (même structure flex + input).
-- `DashboardLayout.tsx` : `<aside>` a maintenant `shrink-0` (ne rétrécit jamais lui-même, garde ses 256px pile) et `overflow-hidden` (si jamais quelque chose déborde quand même à l'intérieur, ça se découpe proprement au lieu de chevaucher `<main>`).
-
-### À retenir
-- **`flex-1` ne suffit pas à rendre un élément rétractable** — les éléments avec du contenu intrinsèque (texte, `<input>`, `<img>`) ont une taille minimale par défaut qui prime sur `flex-1`/`flex-shrink`. Le réflexe : ajouter `min-w-0` (ou `min-width: 0` en CSS brut) sur l'élément flex concerné dès qu'il doit pouvoir rétrécir.
-- **Un conteneur à largeur fixe devrait avoir `overflow-hidden`** s'il contient des enfants dont la taille n'est pas garantie — ça transforme un bug visuel "qui déborde sur le voisin" en un bug beaucoup plus repérable "qui est juste coupé", et surtout ça évite le chevauchement trompeur qu'on a vu ici.
+### Takeaway
+- **An innocuous display bug (yourself in a search list) can become a crash** as soon as it crosses paths with a spot lacking error handling. Fixing only the filtering would have been enough here, but the actual underlying problem — `handleAdd` without a `try/catch` — remained a risk for any other possible error from `/api/addFriend` (already friends, expired jwt, etc.), not just this one.
+- **Any `async` function triggered by a click should have its own `try/catch`** if you want to control how the error is displayed to the user — otherwise Next.js/React decides for you (and it decides "full-screen crash").
 
 ---
 
-## 14. Page de profil — nouvelle feature (nom + photo)
+## 10. Real-time synchronization — handled on the backend side
 
-Trois fichiers touchés, dans cet ordre logique :
+The teammate is going to add a WebSocket broadcast when a friendship is removed ("Cause B" in section 8). Once that's done, there's no more need to rely on silently catching the 404 to mask the drift — both sides will be notified live. We still keep the 404 handling in place: it costs nothing and protects against other desync cases (network latency, a tab left open for several days, etc.).
 
-**`api.ts`** — ajout de `fetchGetUser(idUser)`, qui manquait complètement alors que la route back `POST /api/getUser` existait déjà. C'est elle qui permet d'aller chercher `mail`, `profilePicture` et `scoreTotal` — des infos que le JWT ne contient pas (le token ne porte que `idUser` et `name`, vu à la création dans `server.js`).
+## 11. Chat: overly long text overflowing the bubble
 
-**`AuthContext.tsx`** — nouvelle fonction `updateName(name)`, qui appelle `fetchUpdateUserName` (déjà existante) puis met à jour `user.name` dans le state local :
+### Symptom
+A message with no spaces (e.g. a long run of the same letter) overflows horizontally out of the blue bubble instead of wrapping.
+
+### Cause
+`ChatMessageItem.tsx` limited the bubble's width (`max-w-xs`) but said nothing about *how* to break the text inside it. By default in CSS, text only breaks at spaces (`overflow-wrap: normal`) — a word with no space, however long, is treated as a single unbreakable unit and pushes outside its container instead of wrapping.
+
+### Fix
+Added the Tailwind class `break-words` (= `overflow-wrap: break-word` in CSS) on the bubble, which allows breaking inside a word when that's the only way to fit within the available width.
+
+### Takeaway
+- `max-width` alone doesn't protect against text overflow — a wrapping rule (`overflow-wrap`/`word-break`) is also needed for content the user doesn't control (here, anyone can type a run of characters with no spaces).
+
+## 12. Chat: 100-character limit added on the frontend
+
+The backend already rejects messages over 100 characters (`ws/actions.js`, `manageMsg`) — silently, with no clear response. On the frontend (`ChatInput.tsx`), added `maxLength={100}` on the `<input>` (physically prevents typing more) and a small `content.length/100` counter below the field, so the user understands the limit before reaching a message that would go nowhere.
+
+**Why duplicate a rule already present on the backend?** This isn't unnecessary redundancy: the backend remains the sole source of truth for data security/integrity (it must re-check even if the frontend already limited it, since a malicious client can send anything directly to the WebSocket). The frontend-side limit only serves the user experience — avoiding typing a message that seems sent but will never arrive.
+
+## 13. Search bar overlapping the chat window
+
+### Symptom
+The "Search" button and search field overflowed the left column and visually overlapped the friend's name displayed in the chat window on the right.
+
+### Cause
+A classic flexbox trap, worth knowing once and for all: **an `<input>` in a flex container has an implicit minimum width** (`min-width: auto`), which prevents it from shrinking below its "natural" size even with the `flex-1` class. In `FriendSearchBar.tsx`, the `<input className="flex-1 ...">` line + the "Search" button therefore needed more width than the `256px` (`w-64`) allocated to the left column (`<aside>` in `DashboardLayout.tsx`). Since `<aside>` had no `overflow-hidden`, this overflow wasn't clipped — it kept displaying over the neighboring content (`<main>`) instead of disappearing or forcing a line wrap.
+
+### Fix
+- `FriendSearchBar.tsx`: `min-w-0` added on the `<input>` — explicitly allows the element to shrink below its natural size, so `flex-1` works as intended.
+- `ChatInput.tsx`: same `min-w-0` added as a precaution (same flex + input structure).
+- `DashboardLayout.tsx`: `<aside>` now has `shrink-0` (never shrinks itself, keeps its 256px exactly) and `overflow-hidden` (if anything still overflows inside it, it gets cleanly clipped instead of overlapping `<main>`).
+
+### Takeaway
+- **`flex-1` alone doesn't make an element shrinkable** — elements with intrinsic content (text, `<input>`, `<img>`) have a default minimum size that overrides `flex-1`/`flex-shrink`. The reflex: add `min-w-0` (or `min-width: 0` in raw CSS) on the flex element in question as soon as it needs to be able to shrink.
+- **A fixed-width container should have `overflow-hidden`** if it contains children whose size isn't guaranteed — it turns a visual "overflows onto the neighbor" bug into a much more noticeable "just gets clipped" bug, and above all it avoids the misleading overlap we saw here.
+
+---
+
+## 14. Profile page — new feature (name + photo)
+
+Three files touched, in this logical order:
+
+**`api.ts`** — added `fetchGetUser(idUser)`, which was completely missing even though the backend route `POST /api/getUser` already existed. It's the one that lets us fetch `mail`, `profilePicture` and `scoreTotal` — info the JWT doesn't contain (the token only carries `idUser` and `name`, as seen at creation time in `server.js`).
+
+**`AuthContext.tsx`** — new `updateName(name)` function, which calls `fetchUpdateUserName` (already existing) then updates `user.name` in local state:
 ```ts
 async function updateName(name: string) {
 	if (!token) return;
@@ -370,21 +370,21 @@ async function updateName(name: string) {
 	setUser((prev) => (prev ? { ...prev, name } : prev));
 }
 ```
-**Pourquoi pas juste appeler `fetchUpdateUserName` directement depuis la page de profil ?** Parce que le nom affiché dans le header du dashboard (`DashboardLayout.tsx`) vient de `user.name`, qui est décodé une seule fois depuis le JWT au login (`AuthContext`). Le back ne renvoie pas de nouveau token après un changement de nom — sans ce patch local, le header resterait affiché avec l'ancien nom jusqu'à la prochaine reconnexion. En centralisant la mise à jour dans `AuthContext` (comme `login`/`register` le font déjà), un seul endroit gère l'état d'auth, et tous les composants qui lisent `user.name` se mettent à jour ensemble.
+**Why not just call `fetchUpdateUserName` directly from the profile page?** Because the name displayed in the dashboard header (`DashboardLayout.tsx`) comes from `user.name`, which is decoded once from the JWT at login (`AuthContext`). The backend doesn't return a new token after a name change — without this local patch, the header would keep showing the old name until the next reconnection. By centralizing the update in `AuthContext` (as `login`/`register` already do), a single place manages auth state, and every component that reads `user.name` updates together.
 
-**`app/profile/page.tsx`** (nouveau) — la page elle-même : garde d'authentification identique à `dashboard/page.tsx` (`loading`/`isAuthenticated` + redirection), chargement du profil complet via `fetchGetUser`, formulaire de nom (via `updateName`), upload/suppression de photo (via `fetchUpdateUserImage`/`fetchDeleteUserImage` — déjà écrites dans `api.ts` depuis un moment mais jamais utilisées par aucun composant jusqu'ici).
+**`app/profile/page.tsx`** (new) — the page itself: same auth guard as `dashboard/page.tsx` (`loading`/`isAuthenticated` + redirect), loading of the full profile via `fetchGetUser`, name form (via `updateName`), photo upload/deletion (via `fetchUpdateUserImage`/`fetchDeleteUserImage` — already written in `api.ts` for a while but never used by any component until now).
 
-**`DashboardLayout.tsx`** — le nom dans le header est maintenant un lien vers `/profile`.
+**`DashboardLayout.tsx`** — the name in the header is now a link to `/profile`.
 
-### À retenir
-- **Le JWT n'est pas une base de données** : il ne contient que ce qui a été mis dedans à sa création (`idUser`, `name`), et il ne se met pas à jour tout seul quand les données changent en base. Toute info qui peut changer en cours de session (photo, score...) doit être re-demandée au serveur, pas déduite du token.
-- **Centraliser les mutations d'état d'auth dans `AuthContext`** plutôt que de laisser chaque page appeler l'API directement et gérer elle-même la synchronisation — sinon chaque nouvelle page qui touche au profil réinvente sa propre façon (souvent bancale) de garder le header à jour.
+### Takeaway
+- **The JWT isn't a database**: it only contains what was put in it at creation time (`idUser`, `name`), and it doesn't update itself when the underlying data changes. Any info that can change during a session (photo, score...) must be re-fetched from the server, not inferred from the token.
+- **Centralize auth-state mutations in `AuthContext`** rather than letting each page call the API directly and handle its own synchronization — otherwise every new page that touches the profile reinvents its own (often shaky) way of keeping the header up to date.
 
 ---
 
-## 15. Page de score — nouvelle feature (score initial + classement)
+## 15. Score page — new feature (initial score + leaderboard)
 
-**`GameContext.tsx`** — avant, `score` restait `null` tant qu'aucun évènement WS `clickResult` n'était reçu, donc `ScoreDisplay` n'affichait jamais rien pour quelqu'un qui n'avait pas encore joué au mini-jeu (actuellement cassé côté back, donc : jamais). Ajout d'un chargement initial au montage, avec la même fonction `fetchGetUser` qu'on vient d'ajouter pour la page de profil :
+**`GameContext.tsx`** — before, `score` stayed `null` until a `clickResult` WS event was received, so `ScoreDisplay` never showed anything for someone who hadn't played the mini-game yet (currently broken on the backend, so: never). Added an initial load on mount, with the same `fetchGetUser` function just added for the profile page:
 ```ts
 useEffect(() => {
 	if (!user) return;
@@ -397,23 +397,23 @@ useEffect(() => {
 		.catch(() => {});
 }, [user]);
 ```
-Le score affiché vient maintenant soit de ce chargement initial, soit d'un futur `clickResult` en direct — les deux mettent à jour le même state `score`, donc `ScoreDisplay` n'a rien à changer de son côté.
+The displayed score now comes either from this initial load, or from a future live `clickResult` — both update the same `score` state, so `ScoreDisplay` doesn't need to change anything on its side.
 
-**`ScoreDisplay.tsx`** — le badge de score dans le header est maintenant un lien vers `/score` (même principe que le nom d'utilisateur → `/profile`).
+**`ScoreDisplay.tsx`** — the score badge in the header is now a link to `/score` (same principle as the username → `/profile`).
 
-**`app/score/page.tsx`** (nouveau) — page de classement : réutilise `fetchUsers()` (déjà existante, `GET /api/users`, qui renvoie déjà `scoreTotal` pour chaque utilisateur), triée côté client par score décroissant. La ligne du joueur connecté est mise en évidence (comparaison `u.idUser === user?.idUser`).
+**`app/score/page.tsx`** (new) — leaderboard page: reuses `fetchUsers()` (already existing, `GET /api/users`, which already returns `scoreTotal` for each user), sorted client-side by descending score. The logged-in player's row is highlighted (`u.idUser === user?.idUser` comparison).
 
-### À retenir
-- **Pas besoin d'une nouvelle route back pour un classement** : `/api/users` exposait déjà tout ce qu'il fallait (`scoreTotal` inclus). Avant d'ajouter une fonction dans `api.ts`, vérifie si une route existante ne couvre pas déjà le besoin, même si elle a été écrite pour autre chose à l'origine (ici, la recherche d'amis).
-- **Un seul state, plusieurs sources qui l'alimentent** : `score` dans `GameContext` est maintenant mis à jour à la fois par un chargement initial (HTTP) et par un évènement temps réel (WebSocket) — tant que les deux écrivent dans le même state avec `setScore`, les composants qui le lisent (`ScoreDisplay`) n'ont pas besoin de savoir d'où vient la valeur.
+### Takeaway
+- **No need for a new backend route for a leaderboard**: `/api/users` already exposed everything needed (`scoreTotal` included). Before adding a function in `api.ts`, check whether an existing route doesn't already cover the need, even if it was originally written for something else (here, friend search).
+- **A single state, several sources feeding it**: `score` in `GameContext` is now updated both by an initial load (HTTP) and by a real-time event (WebSocket) — as long as both write into the same state via `setScore`, the components reading it (`ScoreDisplay`) don't need to know where the value came from.
 
-## 16. `FriendSearchBar.tsx` — exclure les amis déjà ajoutés des résultats
+## 16. `FriendSearchBar.tsx` — exclude already-added friends from results
 
 ### Cause
-La recherche filtrait déjà son propre compte (section 9) mais pas les amis existants — chercher quelqu'un qu'on avait déjà ajouté le faisait quand même apparaître avec un bouton "Ajouter", qui aurait échoué avec "You are already friends" (`409`, géré proprement depuis la section 9, mais autant ne jamais montrer le bouton).
+The search already filtered out your own account (section 9) but not existing friends — searching for someone already added would still show them with an "Add" button, which would fail with "You are already friends" (`409`, handled cleanly since section 9, but better to never show the button at all).
 
 ### Fix
-`FriendSearchBar` n'avait pas accès à la liste d'amis actuelle (elle vit dans l'état de `FriendsList`, un composant voisin, pas un parent). Plutôt que de remonter cet état dans `DashboardLayout` pour le partager entre les deux (un refactor plus large, pas nécessaire pour ce besoin), `handleSearch` va chercher sa propre copie de la liste d'amis en parallèle de la recherche d'utilisateurs :
+`FriendSearchBar` didn't have access to the current friends list (it lives in `FriendsList`'s state, a sibling component, not a parent). Rather than lifting this state up into `DashboardLayout` to share it between the two (a bigger refactor, not necessary for this need), `handleSearch` fetches its own copy of the friends list in parallel with the user search:
 ```ts
 const [users, friendsData]: [Friend[], { friends?: Friend[] }] = await Promise.all([
 	fetchUsers(),
@@ -424,24 +424,24 @@ const friendIds = new Set((friendsData.friends ?? []).map((f) => f.idUser));
 users.filter((u) => u.idUser !== user?.idUser && !friendIds.has(u.idUser) && ...)
 ```
 
-### À retenir
-- **`Promise.all([...])` lance plusieurs requêtes en parallèle** plutôt que l'une après l'autre (`await` séquentiel) — deux fois plus rapide ici puisque `fetchUsers()` et `fetchFriends()` ne dépendent pas l'une de l'autre.
-- **Un `Set` est le bon outil pour tester "est-ce que X est dans cette liste ?" beaucoup de fois** (`friendIds.has(u.idUser)` est en O(1), contre O(n) pour `array.includes()` répété dans un `.filter()`) — un réflexe utile dès que la liste peut grandir.
-- **Duplication délibérée** : ça refait un appel réseau à `/api/friends` que `FriendsList` a peut-être déjà fait juste à côté. Un vrai partage d'état entre les deux composants (remonté dans `DashboardLayout`) éviterait la duplication, mais aurait demandé de restructurer trois fichiers pour un gain surtout esthétique — pas justifié pour une recherche ponctuelle et peu fréquente.
+### Takeaway
+- **`Promise.all([...])` fires several requests in parallel** rather than one after another (sequential `await`) — twice as fast here since `fetchUsers()` and `fetchFriends()` don't depend on each other.
+- **A `Set` is the right tool for testing "is X in this list?" many times** (`friendIds.has(u.idUser)` is O(1), versus O(n) for repeated `array.includes()` inside a `.filter()`) — a useful reflex as soon as the list can grow.
+- **Deliberate duplication**: this makes another network call to `/api/friends` that `FriendsList` may have already made right next to it. Truly sharing state between the two components (lifted into `DashboardLayout`) would avoid the duplication, but would have required restructuring three files for a mostly cosmetic gain — not justified for an occasional, infrequent search.
 
 ---
 
-## 17. Suite de la session : passage côté back
+## 17. Continuing the session: moving to the backend side
 
-À partir d'ici, la session a continué directement sur `srcs/backend` plutôt que de rester cantonnée au front (décision explicite, pas juste un dépannage ponctuel). Le détail — dont un bug de routage WebSocket qui faisait qu'aucune action WS (`auth`, `msg`, `click`...) n'avait jamais été traitée depuis le début du projet, et pas seulement le mini-jeu — est dans `srcs/backend/BACKEND_CHANGES.md`. Le contrat front/back à jour est dans `srcs/backend/BACKEND_TODO.md`.
+From here, the session continued directly on `srcs/backend` rather than staying confined to the frontend (an explicit decision, not just a one-off patch). The detail — including a WebSocket routing bug that meant no WS action (`auth`, `msg`, `click`...) had ever been processed since the start of the project, and not just the mini-game — is in `srcs/backend/BACKEND_CHANGES.md`. The up-to-date front/back contract is in `srcs/backend/BACKEND_TODO.md`.
 
-Conséquence pour le front : le mini-jeu fonctionne maintenant de bout en bout (plus rien à faire ici), et `getConvos` renvoie enfin le bon expéditeur — seul l'historique de chat au chargement reste à câbler côté front (voir ci-dessous), le blocage back ayant disparu.
+Consequence for the frontend: the mini-game now works end-to-end (nothing left to do here), and `getConvos` finally returns the right sender — only the chat history on load remains to be wired on the frontend (see below), the backend blocker having disappeared.
 
-## 18. Historique de chat au chargement — dernière tâche connue, terminée
+## 18. Chat history on load — last known task, completed
 
-**`api.ts`** — `fetchGetConvos(token)` ajouté (`POST /api/getConvos`, header seulement, l'`idUser` vient du JWT côté back).
+**`api.ts`** — `fetchGetConvos(token)` added (`POST /api/getConvos`, header only, `idUser` comes from the JWT on the backend).
 
-**`ChatContext.tsx`** — nouveau `useEffect` qui se déclenche une fois que `user`/`token` sont disponibles (donc juste après connexion) :
+**`ChatContext.tsx`** — new `useEffect` that fires once `user`/`token` are available (so right after connecting):
 ```ts
 const rows: ConvoRow[] = [...(data.convos ?? [])].sort((a, b) => a.idMessage - b.idMessage);
 const grouped: Conversations = {};
@@ -456,14 +456,14 @@ for (const row of rows) {
 }
 setConversations((prev) => ({ ...grouped, ...prev }));
 ```
-Deux points techniques qui méritent explication :
+Two technical points worth explaining:
 
-- **Regroupement par conversation** : `getConvos` renvoie un tableau plat de *tous* les messages de toutes les conversations de l'utilisateur, pas déjà groupé par ami. Chaque ligne porte `idUser`/`idUser_1` (les deux participants constants du fil) — celui des deux qui n'est pas moi devient la clé `otherUserId` du regroupement, exactement le même identifiant que celui utilisé partout ailleurs dans `ChatContext` (`getMessages(idUser)`, `sendMessage(idUser, ...)`).
-- **Tri par `idMessage`, pas par `sendDate`** : la requête SQL de `getConvos` n'a pas de `ORDER BY`, donc l'ordre renvoyé par MariaDB n'est pas garanti chronologique. `sendDate` est un `DATETIME` (précision à la seconde) — deux messages envoyés dans la même seconde seraient à égalité et pourraient se retrouver dans le mauvais ordre. `idMessage` (`AUTO_INCREMENT`) garantit, lui, l'ordre d'insertion réel sans ambiguïté.
+- **Grouping by conversation**: `getConvos` returns a flat array of *all* the user's messages across all conversations, not already grouped by friend. Each row carries `idUser`/`idUser_1` (the thread's two constant participants) — whichever of the two isn't me becomes the `otherUserId` grouping key, exactly the same identifier used everywhere else in `ChatContext` (`getMessages(idUser)`, `sendMessage(idUser, ...)`).
+- **Sorted by `idMessage`, not by `sendDate`**: `getConvos`'s SQL query has no `ORDER BY`, so the order returned by MariaDB isn't guaranteed to be chronological. `sendDate` is a `DATETIME` (second-level precision) — two messages sent within the same second would tie and could end up in the wrong order. `idMessage` (`AUTO_INCREMENT`), on the other hand, guarantees the actual insertion order unambiguously.
 
-### À retenir
-- **Une donnée plate en base doit souvent être regroupée côté client** — le back n'a aucune raison de renvoyer une structure imbriquée par conversation s'il ne la construit pas déjà lui-même ; c'est au front de faire ce travail avec les identifiants qu'il a déjà (ici, "qui n'est pas moi dans cette paire").
-- **Ne jamais trier par un timestamp à faible précision quand une clé auto-incrémentée est disponible** — l'ordre d'insertion réel (`idMessage`) est une garantie plus forte que l'horodatage (`sendDate`) pour départager des évènements proches.
-- `setConversations((prev) => ({ ...grouped, ...prev }))` : l'historique chargé sert de **base**, tout ce qui est déjà arrivé en direct via WebSocket avant que cet appel ne se termine (fenêtre de quelques centaines de ms au pire, à la connexion) prend le dessus. Compromis délibéré plutôt que de fusionner les deux tableaux message par message — la fenêtre de risque est minime et la fusion fine aurait ajouté de la complexité pour un cas limite très rare.
+### Takeaway
+- **Flat data from the database often needs to be grouped on the client**— the backend has no reason to return a structure already nested by conversation if it doesn't already build it that way itself; it's up to the frontend to do that work with the identifiers it already has (here, "whoever isn't me in this pair").
+- **Never sort by a low-precision timestamp when an auto-incrementing key is available** — the actual insertion order (`idMessage`) is a stronger guarantee than the timestamp (`sendDate`) for breaking ties between close events.
+- `setConversations((prev) => ({ ...grouped, ...prev }))`: the loaded history serves as the **base**, anything that already arrived live via WebSocket before this call finishes (a window of at most a few hundred ms, at connection time) takes precedence. A deliberate tradeoff rather than merging both arrays message by message — the risk window is minimal and a fine-grained merge would have added complexity for a very rare edge case.
 
-C'était la dernière tâche connue côté front. Tout ce qui restait dans `BACKEND_TODO.md`/`FRONTEND_CHANGES.md` est maintenant réglé, à l'exception du broadcast WS sur suppression d'amitié (côté back, confié au coéquipier).
+This was the last known task on the frontend side. Everything that remained in `BACKEND_TODO.md`/`FRONTEND_CHANGES.md` is now resolved, except for the WS broadcast on friendship removal (backend side, entrusted to the teammate).

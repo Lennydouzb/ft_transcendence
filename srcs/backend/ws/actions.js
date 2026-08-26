@@ -155,7 +155,7 @@ const manageClick = async (ws, args) =>
 				ws.send(JSON.stringify({action: "clickResult", success: false, message: "Missed"}));
 				return;
 			}
-			// consomme le bouton avant tout `await` : le premier clic à passer ici gagne
+			// consumes the button before any `await`: the first click to arrive here wins
 			gameActive = 0;
 			for (const anUser of sessionsUsers.values())
 			{

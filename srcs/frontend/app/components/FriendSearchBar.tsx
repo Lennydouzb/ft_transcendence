@@ -51,7 +51,7 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 			setResults((prev) => prev.filter((u) => u.idUser !== idUser));
 			onFriendAdded();
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Impossible d'ajouter cet ami");
+			setError(err instanceof Error ? err.message : 'Unable to add this friend');
 		}
 	}
 
@@ -62,7 +62,7 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 					type="text"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder="Chercher un ami..."
+					placeholder="Search for a friend..."
 					className="min-w-0 flex-1 rounded border px-3 py-2 text-sm"
 				/>
 				<button
@@ -70,7 +70,7 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 					disabled={searching}
 					className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
 				>
-					{searching ? '...' : 'Chercher'}
+					{searching ? '...' : 'Search'}
 				</button>
 			</form>
 			{error && <p className="text-xs text-red-600">{error}</p>}
@@ -87,7 +87,7 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 								onClick={() => handleAdd(u.idUser)}
 								className="rounded bg-green-600 px-2 py-1 text-xs text-white"
 							>
-								Ajouter
+								Add
 							</button>
 						</li>
 					))}

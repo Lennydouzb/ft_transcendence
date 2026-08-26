@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				const decoded = decodeToken(stored);
 				if (decoded && decoded.exp * 1000 > Date.now()) {
 					try {
-						// Vérifie que l'utilisateur existe toujours en base de données (ex: après un make re)
+						// Checks that the user still exists in the database (e.g. after a make re)
 						const data = await fetchGetUser(decoded.user.idUser);
 						if (!Array.isArray(data) || data.length === 0) {
 							throw new Error('User not found in DB');

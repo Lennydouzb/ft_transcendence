@@ -26,14 +26,14 @@ export default function ScorePage() {
 				const sorted = [...users].sort((a, b) => (b.scoreTotal ?? 0) - (a.scoreTotal ?? 0));
 				setRanking(sorted);
 			})
-			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
+			.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
 			.finally(() => setRankingLoading(false));
 	}, []);
 
 	if (loading || !isAuthenticated) {
 		return (
 			<main className="flex min-h-screen items-center justify-center">
-				<p>Chargement...</p>
+				<p>Loading...</p>
 			</main>
 		);
 	}
@@ -41,12 +41,12 @@ export default function ScorePage() {
 	return (
 		<main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
 			<Link href="/dashboard" className="text-sm underline">
-				&larr; Retour au dashboard
+				&larr; Back to dashboard
 			</Link>
 
-			<h1 className="text-2xl font-bold">Classement</h1>
+			<h1 className="text-2xl font-bold">Leaderboard</h1>
 
-			{rankingLoading && <p className="text-sm text-gray-500">Chargement...</p>}
+			{rankingLoading && <p className="text-sm text-gray-500">Loading...</p>}
 			{error && <p className="text-sm text-red-600">{error}</p>}
 
 			{!rankingLoading && !error && (

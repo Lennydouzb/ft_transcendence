@@ -30,7 +30,7 @@ export default function ChatInput({ idUser }: ChatInputProps) {
 					value={content}
 					onChange={(e) => setContent(e.target.value)}
 					maxLength={MAX_LENGTH}
-					placeholder="Écris un message..."
+					placeholder="Write a message..."
 					className="min-w-0 flex-1 rounded border px-3 py-2 text-sm"
 				/>
 				<button
@@ -38,7 +38,7 @@ export default function ChatInput({ idUser }: ChatInputProps) {
 					disabled={!content.trim()}
 					className="rounded bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
 				>
-					Envoyer
+					Send
 				</button>
 			</div>
 			<span className="self-end text-xs text-gray-400">

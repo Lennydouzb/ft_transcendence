@@ -18,7 +18,7 @@ export default function DashboardPage() {
 	if (loading || !isAuthenticated) {
 		return (
 			<main className="flex min-h-screen items-center justify-center">
-				<p>Chargement...</p>
+				<p>Loading...</p>
 			</main>
 		);
 	}

@@ -58,8 +58,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 			return;
 		fetchGetConvos(token)
 			.then((data) => {
-				// trié par idMessage (ordre d'insertion garanti) plutôt que sendDate,
-				// qui n'a qu'une précision à la seconde et peut avoir des égalités
+				// sorted by idMessage (guaranteed insertion order) rather than sendDate,
+				// which only has second-level precision and can have ties
 				const rows: ConvoRow[] = [...(data.convos ?? [])].sort((a, b) => a.idMessage - b.idMessage);
 				const grouped: Conversations = {};
 				for (const row of rows) {
