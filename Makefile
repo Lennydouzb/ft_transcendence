@@ -13,7 +13,7 @@ fclean: clean
 	docker system prune -af
 
 clean: stop
-	sudo rm -rf $(ORIGIN)
+	rm -rf $(ORIGIN)
 
 stop:
 	docker compose -f ./docker/docker-compose.yml down
