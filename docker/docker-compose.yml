@@ -2,10 +2,6 @@ volumes:
   mariadb:
     name: mariadb
     driver: local
-    driver_opts:
-      device: ${MARIADB_DATA_DIR}
-      o: bind
-      type: none
 services:
 
   nginx:
