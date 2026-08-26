@@ -21,6 +21,9 @@ const SECRET = process.env.SECRET;
 //this is to read json
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res) => {
+    res.status(404).json({ success: false });
+});
 const PORT = 8080;
 
 const pool = mariadb.createPool({
