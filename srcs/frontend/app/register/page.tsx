@@ -50,6 +50,7 @@ export default function RegisterPage() {
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						required
+						maxLength={16}
 						className="rounded border px-3 py-2"
 					/>
 				</label>
@@ -61,6 +62,7 @@ export default function RegisterPage() {
 						value={mail}
 						onChange={(e) => setMail(e.target.value)}
 						required
+						maxLength={32}
 						className="rounded border px-3 py-2"
 					/>
 				</label>
