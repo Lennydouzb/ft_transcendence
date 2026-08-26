@@ -14,7 +14,6 @@ fclean: clean
 
 clean: stop
 	rm -rf $(ORIGIN)
-	rm -rf srcs/backend/uploads
 
 stop:
 	docker compose -f ./docker/docker-compose.yml down
