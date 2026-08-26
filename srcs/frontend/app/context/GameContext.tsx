@@ -44,7 +44,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 	const [score, setScore] = useState<number | null>(null);
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
 
-	// Garder une trace de la position actuelle pour le feedback sans relancer l'effet
+	// Keep track of the current position for feedback without re-triggering the effect
 	const positionRef = useRef<Position | null>(null);
 	useEffect(() => {
 		positionRef.current = position;
@@ -90,7 +90,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 					position: positionRef.current,
 					id: Date.now()
 				});
-				// Effacer le feedback après 1.5s
+				// Clear the feedback after 1.5s
 				setTimeout(() => setFeedback(null), 1500);
 			}
 

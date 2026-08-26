@@ -61,9 +61,9 @@ export default function ProfilePage() {
 		try {
 			await updateName(trimmed);
 			setProfile((prev) => (prev ? { ...prev, name: trimmed } : prev));
-			setNameMessage('Nom mis à jour.');
+			setNameMessage('Name updated.');
 		} catch (err) {
-			setNameMessage(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+			setNameMessage(err instanceof Error ? err.message : 'Error while updating');
 		} finally {
 			setSavingName(false);
 		}
@@ -83,7 +83,7 @@ export default function ProfilePage() {
 			if (fileInputRef.current)
 				fileInputRef.current.value = '';
 		} catch (err) {
-			setImageError(err instanceof Error ? err.message : "Erreur lors de l'envoi");
+			setImageError(err instanceof Error ? err.message : 'Error while uploading');
 		} finally {
 			setUploading(false);
 		}
@@ -98,7 +98,7 @@ export default function ProfilePage() {
 			await fetchDeleteUserImage(token);
 			setProfile((prev) => (prev ? { ...prev, profilePicture: null } : prev));
 		} catch (err) {
-			setImageError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+			setImageError(err instanceof Error ? err.message : 'Error while deleting');
 		} finally {
 			setUploading(false);
 		}
@@ -107,7 +107,7 @@ export default function ProfilePage() {
 	if (loading || !isAuthenticated || profileLoading) {
 		return (
 			<main className="flex min-h-screen items-center justify-center">
-				<p>Chargement...</p>
+				<p>Loading...</p>
 			</main>
 		);
 	}
@@ -117,10 +117,10 @@ export default function ProfilePage() {
 	return (
 		<main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
 			<Link href="/dashboard" className="text-sm underline">
-				&larr; Retour au dashboard
+				&larr; Back to dashboard
 			</Link>
 
-			<h1 className="text-2xl font-bold">Mon profil</h1>
+			<h1 className="text-2xl font-bold">My profile</h1>
 
 			<section className="flex flex-col items-center gap-3">
 				{showImage ? (
@@ -151,7 +151,7 @@ export default function ProfilePage() {
 						onClick={handleImageUpload}
 						className="rounded bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-50"
 					>
-						{uploading ? '...' : 'Changer la photo'}
+						{uploading ? '...' : 'Change photo'}
 					</button>
 					{profile?.profilePicture && (
 						<button
@@ -160,7 +160,7 @@ export default function ProfilePage() {
 							onClick={handleImageDelete}
 							className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
 						>
-							Retirer
+							Remove
 						</button>
 					)}
 				</div>
@@ -169,7 +169,7 @@ export default function ProfilePage() {
 
 			<form onSubmit={handleNameSubmit} className="flex flex-col gap-2">
 				<label className="flex flex-col gap-1">
-					<span className="text-sm">Nom</span>
+					<span className="text-sm">Name</span>
 					<input
 						type="text"
 						value={name}
@@ -184,14 +184,14 @@ export default function ProfilePage() {
 					disabled={savingName}
 					className="self-start rounded bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
 				>
-					{savingName ? '...' : 'Enregistrer'}
+					{savingName ? '...' : 'Save'}
 				</button>
 				{nameMessage && <p className="text-xs text-gray-500">{nameMessage}</p>}
 			</form>
 
 			<section className="text-sm text-gray-500">
-				<p>Email : {profile?.mail}</p>
-				<p>Score total : {profile?.scoreTotal ?? 0}</p>
+				<p>Email: {profile?.mail}</p>
+				<p>Total score: {profile?.scoreTotal ?? 0}</p>
 			</section>
 		</main>
 	);

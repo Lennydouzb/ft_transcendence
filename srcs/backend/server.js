@@ -311,7 +311,7 @@ app.post('/api/createUser', async (req, res) => {
 		if (err.code === 'ER_DUP_ENTRY') {
 			return res.status(409).json({
 				success: false,
-				message: 'cet email est déjà utilisé'
+				message: 'this email is already in use'
 			});
 		}
 		res.status(500).json({

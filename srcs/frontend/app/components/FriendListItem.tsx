@@ -52,7 +52,7 @@ export default function FriendListItem({ friend, selected, onSelect, onRemove, r
 				}}
 				className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-100 disabled:opacity-50"
 			>
-				{removing ? '...' : 'Retirer'}
+				{removing ? '...' : 'Remove'}
 			</button>
 		</div>
 	);

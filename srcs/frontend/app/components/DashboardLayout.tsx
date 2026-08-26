@@ -26,7 +26,7 @@ export default function DashboardLayout() {
 					onClick={logout}
 					className="rounded bg-red-600 px-3 py-1 text-sm text-white"
 				>
-					Se déconnecter
+					Log out
 				</button>
 			</header>
 
@@ -45,7 +45,7 @@ export default function DashboardLayout() {
 						<ChatWindow friend={selectedFriend} />
 					) : (
 						<div className="flex h-full items-center justify-center text-gray-400">
-							Sélectionne un ami pour discuter
+							Select a friend to chat
 						</div>
 					)}
 				</main>

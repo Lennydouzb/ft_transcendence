@@ -1,33 +1,33 @@
-# Journal de session — back
+# Session journal — backend
 
-Pendant de `srcs/frontend/FRONTEND_CHANGES.md`, même principe : pour chaque changement, le symptôme observé, la cause réelle, le fix, et le concept général à retenir. Ces changements ont été faits après la session front (voir l'autre fichier pour ce qui précède), une fois les bugs frontend réglés et la décision prise de s'attaquer directement au back.
+Following on from `srcs/frontend/FRONTEND_CHANGES.md`, same principle: for each change, the observed symptom, the actual cause, the fix, and the general concept to remember. These changes were made after the frontend session (see the other file for what came before), once the frontend bugs were resolved and the decision was made to tackle the backend directly.
 
-Voir aussi `BACKEND_TODO.md` — le contrat front/back, tenu à jour au fur et à mesure. Ce fichier-ci raconte le "pourquoi", `BACKEND_TODO.md` donne l'état actuel case par case.
+Also see `BACKEND_TODO.md` — the front/back contract, kept up to date as things progress. This file tells the "why", `BACKEND_TODO.md` gives the current state item by item.
 
 ---
 
-## 1. Le bug le plus important : aucune action WebSocket n'a jamais été traitée
+## 1. The most important bug: no WebSocket action was ever processed
 
-### Symptôme
-Le mini-jeu ne se déclenchait jamais (pas de bouton, jamais). Testé en isolant le WebSocket avec un script Node (sans passer par le navigateur) : une connexion + un message `auth` envoyés, **aucune réponse en 20 secondes**, même pas une erreur.
+### Symptom
+The mini-game never triggered (no button, ever). Tested by isolating the WebSocket with a Node script (without going through the browser): a connection + an `auth` message sent, **no response within 20 seconds**, not even an error.
 
 ### Cause
-Dans `server.js` :
+In `server.js`:
 ```js
-ws.on('connection', (ws) => {          // ce `ws` local ne vit que dans ce bloc
+ws.on('connection', (ws) => {          // this local `ws` only lives inside this block
 	ws.send(JSON.stringify({message:"Connected successfully"}));
 });
-ws.on('message', (message) => {        // attaché au `ws` extérieur : le SERVEUR, pas un client
+ws.on('message', (message) => {        // attached to the outer `ws`: the SERVER, not a client
 	...
 	getActions[args.action](ws, args);
 	...
 })
 ```
-`const ws = new websocket.Server({server})`, tout en haut du fichier, désigne **le serveur WebSocket** (celui qui accepte les connexions), pas une connexion précise. À l'intérieur de `ws.on('connection', (ws) => {...})`, le paramètre `ws` masque volontairement l'extérieur pour désigner **une connexion client donnée** — mais seulement entre les accolades de ce bloc.
+`const ws = new websocket.Server({server})`, at the very top of the file, refers to **the WebSocket server** (the one that accepts connections), not a specific connection. Inside `ws.on('connection', (ws) => {...})`, the `ws` parameter deliberately shadows the outer one to refer to **a given client connection** — but only within that block's braces.
 
-`ws.on('message', ...)` et `ws.on('close', ...)` étaient déclarés **en dehors** de ce bloc, donc attachés au serveur. Or la librairie `ws` n'émet **jamais** d'évènement `'message'` sur l'objet serveur — seulement sur chaque connexion individuelle. Vérifié avec un test minimal isolé (un serveur `ws` jouet, un client qui envoie un message) : le listener `wss.on('message', ...)` ne se déclenche jamais, seul `socket.on('message', ...)` (à l'intérieur de `connection`) reçoit quelque chose.
+`ws.on('message', ...)` and `ws.on('close', ...)` were declared **outside** this block, so attached to the server. But the `ws` library **never** emits a `'message'` event on the server object — only on each individual connection. Verified with a minimal isolated test (a toy `ws` server, a client sending a message): the `wss.on('message', ...)` listener never fires, only `socket.on('message', ...)` (inside `connection`) receives anything.
 
-Conséquence : `getActions[args.action](ws, args)` — la ligne qui route vers `manageAuth`, `manageMsg`, `manageClick`, `managePpChange` — n'a **jamais été appelée, pour personne**, silencieusement, sans la moindre erreur. `sessionsUsers` est resté vide en permanence. Le chat "avait l'air" de marcher pendant les tests précédents uniquement parce que `ChatContext` affiche le message optimistiquement côté expéditeur, sans attendre de confirmation serveur — la réception réelle sur un second compte n'avait jamais été vérifiée.
+Consequence: `getActions[args.action](ws, args)` — the line that routes to `manageAuth`, `manageMsg`, `manageClick`, `managePpChange` — was **never called, for anyone**, silently, without the slightest error. `sessionsUsers` stayed permanently empty. The chat "seemed" to work during earlier testing only because `ChatContext` displays the message optimistically on the sender's side, without waiting for server confirmation — actual reception on a second account had never been verified.
 
 ### Fix
 ```js
@@ -42,7 +42,7 @@ ws.on('connection', (socket) => {
 			else
 				socket.send(JSON.stringify({ error: "action doesn't exist" }));
 		} catch (err) {
-			socket.send(JSON.stringify({ error: "Format de message invalide" }));
+			socket.send(JSON.stringify({ error: "Invalid message format" }));
 		}
 	});
 
@@ -56,49 +56,49 @@ server.listen(PORT, () => {
 	startRandomRenderLoop();
 });
 ```
-Tout déplacé à l'intérieur de `connection`, avec le paramètre renommé `socket` (au lieu de réutiliser `ws`) pour rendre la portée explicite et éviter tout masquage confus. Au passage, suppression de `const args = server.listen(...)` — une affectation morte qui traînait là (le retour de `.listen()` n'était jamais utilisé), déjà signalée comme point confus dans le premier passage sur ce fichier.
+Everything moved inside `connection`, with the parameter renamed to `socket` (instead of reusing `ws`) to make the scope explicit and avoid any confusing shadowing. In passing, removed `const args = server.listen(...)` — a dead assignment that was lingering there (the return value of `.listen()` was never used), already flagged as a confusing point during the first pass over this file.
 
-### À retenir
-- **Une variable déclarée comme paramètre de callback n'existe que dans ce callback.** `ws.on('connection', (ws) => {...})` ne redéfinit `ws` que pour ce bloc précis — en dehors, `ws` redésigne toujours ce qu'il désignait avant.
-- **Un event listener attaché au mauvais objet ne produit aucune erreur.** Il s'enregistre avec succès, ne se déclenche simplement jamais. C'est le pire type de bug à détecter en lisant le code seul — il faut le tester en isolant la partie suspecte (ici, un client WS minimal, sans navigateur ni React) pour observer objectivement ce qui se passe.
-- **Avant de soupçonner la logique métier d'une fonction, vérifier qu'elle est bien appelée.** On a d'abord cru le mini-jeu cassé à cause de `gameActive`/`manageClick` (vrais bugs, corrigés aussi, voir plus bas) — mais tant que ce bug de routage n'était pas réglé, aucun de ces fixes n'aurait eu le moindre effet visible, puisque `manageClick` n'était jamais atteint.
+### Takeaway
+- **A variable declared as a callback parameter only exists inside that callback.** `ws.on('connection', (ws) => {...})` only redefines `ws` for that specific block — outside it, `ws` still refers to whatever it referred to before.
+- **An event listener attached to the wrong object produces no error at all.** It registers successfully, it just never fires. This is the worst kind of bug to detect by reading the code alone — it has to be tested by isolating the suspect part (here, a minimal WS client, no browser or React) to objectively observe what happens.
+- **Before suspecting a function's business logic, verify it's actually being called.** The mini-game was first suspected to be broken because of `gameActive`/`manageClick` (real bugs, also fixed, see below) — but as long as this routing bug wasn't fixed, none of those fixes would have had any visible effect, since `manageClick` was never reached.
 
 ---
 
-## 2. `manageClick` : mauvais nom de paramètre
+## 2. `manageClick`: wrong parameter name
 
-### Symptôme
-Une fois le bug de routage réglé (section 1), le premier test de clic a révélé un second bug immédiatement dessous.
+### Symptom
+Once the routing bug was fixed (section 1), the first click test revealed a second bug right underneath it.
 
 ### Cause
 ```js
 const manageClick = async (wa, args) =>
 {
 	...
-	if (sessionsUsers.has(ws))   // `ws` n'existe nulle part dans cette fonction — seul `wa` est déclaré
+	if (sessionsUsers.has(ws))   // `ws` doesn't exist anywhere in this function — only `wa` is declared
 	{
 		...
 ```
-Le paramètre s'appelait `wa` (probablement une faute de frappe pour `ws`), mais le corps de la fonction utilisait `ws` — undefined dans ce scope. Résultat : `ReferenceError` à l'exécution, à chaque tentative de clic.
+The parameter was named `wa` (probably a typo for `ws`), but the function body used `ws` — undefined in this scope. Result: `ReferenceError` at runtime, on every click attempt.
 
 ### Fix
-Paramètre renommé `wa` → `ws`, cohérent avec tous les autres handlers du fichier (`manageAuth`, `manageMsg`, etc., qui prennent tous `(ws, args)`).
+Parameter renamed `wa` → `ws`, consistent with all the other handlers in the file (`manageAuth`, `manageMsg`, etc., which all take `(ws, args)`).
 
-### À retenir
-- Un nom de paramètre qui ne correspond à rien dans le corps de la fonction ne casse rien à la déclaration (JavaScript ne vérifie pas ça statiquement) — l'erreur n'apparaît qu'à l'exécution, sur le premier appel réel.
+### Takeaway
+- A parameter name that doesn't match anything in the function body doesn't break anything at declaration time (JavaScript doesn't check this statically) — the error only appears at runtime, on the first actual call.
 
 ---
 
-## 3. Le mini-jeu n'avait pas de logique de "spawn"/"disparition" cohérente
+## 3. The mini-game had no coherent "spawn"/"disappear" logic
 
-### Symptôme
-Même avec les deux bugs ci-dessus réglés, rien ne rendait le bouton réellement cliquable.
+### Symptom
+Even with the two bugs above fixed, nothing actually made the button clickable.
 
 ### Cause
-- `gameActive` n'était jamais mis à `1` : `startRandomRenderLoop` diffusait `unrender` puis `render` à intervalle aléatoire, mais ne touchait jamais à cette variable — donc `if (gameActive == 1)` dans `manageClick` n'était jamais vrai.
-- Pas de verrou atomique "premier clic gagne" : rien ne repassait `gameActive` à `0` à l'intérieur de `manageClick`, donc même une fois la variable activée, plusieurs clics quasi-simultanés auraient pu tous passer le test avant qu'aucun ne le referme.
-- Désalignement des noms d'action : le back envoyait `render`/`unrender`, le front (`GameContext.tsx`, déjà écrit) écoutait `spawn`/`gone`/`clickResult`.
-- Les réponses de `manageClick` n'avaient pas de champ `action` — sans lui, le système de routage du front (`WebSocketContext.tsx`, qui ne dispatche que les messages avec un `action` reconnu) les ignorait silencieusement.
+- `gameActive` was never set to `1`: `startRandomRenderLoop` broadcast `unrender` then `render` at random intervals, but never touched this variable — so `if (gameActive == 1)` in `manageClick` was never true.
+- No atomic "first click wins" lock: nothing set `gameActive` back to `0` inside `manageClick`, so even once the variable was activated, several near-simultaneous clicks could all pass the check before any of them closed it.
+- Action name mismatch: the backend sent `render`/`unrender`, the frontend (`GameContext.tsx`, already written) listened for `spawn`/`gone`/`clickResult`.
+- `manageClick`'s responses had no `action` field — without it, the frontend's routing system (`WebSocketContext.tsx`, which only dispatches messages with a recognized `action`) silently ignored them.
 
 ### Fix
 ```js
@@ -120,51 +120,51 @@ if (gameActive != 1) {
 	ws.send(JSON.stringify({action: "clickResult", success: false, message: "Missed"}));
 	return;
 }
-gameActive = 0;   // consommé avant tout `await` : le premier clic à passer ici gagne
+gameActive = 0;   // consumed before any `await`: the first click to arrive here wins
 for (const anUser of sessionsUsers.values())
 	anUser.ws.send(JSON.stringify({ action: "gone" }));
-// ... puis la mise à jour du score, avec `action: "clickResult"` sur chaque réponse
+// ... then the score update, with `action: "clickResult"` on every response
 ```
 
-### À retenir
-- **"Premier clic gagne" est une question de concurrence, pas juste de logique.** Le verrou (`gameActive = 0`) doit être posé de façon synchrone, avant la première opération asynchrone (`await`) — sinon deux requêtes qui arrivent presque en même temps peuvent toutes les deux lire `gameActive == 1` avant qu'aucune n'ait eu le temps de le repasser à `0`.
-- **Le contrat de nommage des actions WS est bidirectionnel et doit être identique des deux côtés au caractère près** — `render` et `spawn` sont fonctionnellement la même idée, mais le front qui écoute l'un n'entendra jamais l'autre.
-- Testé avec deux clients WS simulés (un script Node, pas le navigateur) cliquant l'un après l'autre : le premier récupère `clickResult success:true`, le second `success:false, message:"Missed"` — confirme que le verrou fonctionne sous contention réelle, pas juste en théorie.
+### Takeaway
+- **"First click wins" is a concurrency question, not just a logic one.** The lock (`gameActive = 0`) must be set synchronously, before the first asynchronous operation (`await`) — otherwise two requests that arrive nearly at the same time could both read `gameActive == 1` before either has had time to set it back to `0`.
+- **The WS action naming contract is bidirectional and must match exactly, character for character, on both sides** — `render` and `spawn` are functionally the same idea, but a frontend listening for one will never hear the other.
+- Tested with two simulated WS clients (a Node script, not the browser) clicking one after the other: the first gets `clickResult success:true`, the second `success:false, message:"Missed"` — confirms the lock works under real contention, not just in theory.
 
 ---
 
-## 4. `UPDATE ... RETURNING` n'existe pas en MariaDB
+## 4. `UPDATE ... RETURNING` doesn't exist in MariaDB
 
-### Symptôme
-Le mini-jeu semblait fonctionner (bouton, clic, disparition) mais **le score ne s'incrémentait jamais**, ni dans l'UI ni en base.
+### Symptom
+The mini-game seemed to work (button, click, disappearance) but **the score never incremented**, neither in the UI nor in the database.
 
 ### Cause
 ```js
 const sqlQuery = "update tr_User set scoreTotal = scoreTotal + 100 where idUser = ? returning scoreTotal";
 const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
 ```
-`RETURNING` après un `UPDATE` est une syntaxe **PostgreSQL**. MariaDB ne la supporte que pour `INSERT` et `DELETE`, pas pour `UPDATE` — chaque tentative plantait avec une erreur de syntaxe SQL (`ER_PARSE_ERROR`), silencieusement absorbée par le `catch` de `manageClick`, qui renvoyait `"The database didn't want you to win"`. Le bouton disparaissait quand même (le broadcast `gone` est indépendant du résultat de la requête), donnant l'illusion trompeuse que "ça marche".
+`RETURNING` after an `UPDATE` is **PostgreSQL** syntax. MariaDB only supports it for `INSERT` and `DELETE`, not for `UPDATE` — every attempt failed with a SQL syntax error (`ER_PARSE_ERROR`), silently swallowed by `manageClick`'s `catch`, which returned `"The database didn't want you to win"`. The button disappeared anyway (the `gone` broadcast is independent of the query result), giving the misleading illusion that "it works".
 
-Confirmé en lisant les logs du container (`docker logs backend`) puis en interrogeant directement la table (`scoreTotal` à `0` pour tout le monde malgré plusieurs clics gagnants apparents).
+Confirmed by reading the container logs (`docker logs backend`) then querying the table directly (`scoreTotal` at `0` for everyone despite several apparent winning clicks).
 
 ### Fix
-Deux requêtes séparées au lieu d'une seule avec `RETURNING` :
+Two separate queries instead of one with `RETURNING`:
 ```js
 await conn.query("update tr_User set scoreTotal = scoreTotal + 100 where idUser = ?", [jwtDecoded.idUser]);
 const rows = await conn.query("select scoreTotal from tr_User where idUser = ?", [jwtDecoded.idUser]);
 ```
 
-### À retenir
-- **Une syntaxe SQL valide sur un moteur ne l'est pas forcément sur un autre**, même pour des fonctionnalités qui semblent "standard" (`RETURNING` existe sur PostgreSQL, SQLite ≥ 3.35, MariaDB ≥ 10.5 pour `INSERT`/`DELETE` — mais pas `UPDATE` sur MariaDB à ce jour).
-- **Un `catch` qui absorbe l'erreur sans la faire remonter clairement peut masquer un bug pendant longtemps** si le reste du flux (ici, la disparition du bouton) continue à donner l'illusion que tout va bien. Le réflexe qui a permis de trouver ça : comparer l'état réel en base (`SELECT scoreTotal FROM tr_User`) à ce que l'UI affichait, plutôt que de faire confiance à l'apparence de succès.
-- `docker logs <container>` reste le premier réflexe face à un comportement silencieusement incorrect côté back — l'erreur SQL complète y était, avec la requête fautive citée telle quelle.
+### Takeaway
+- **SQL syntax valid on one engine isn't necessarily valid on another**, even for features that seem "standard" (`RETURNING` exists on PostgreSQL, SQLite ≥ 3.35, MariaDB ≥ 10.5 for `INSERT`/`DELETE` — but not `UPDATE` on MariaDB as of today).
+- **A `catch` that swallows the error without surfacing it clearly can hide a bug for a long time** if the rest of the flow (here, the button disappearing) keeps giving the illusion that everything's fine. The reflex that caught this: comparing the actual state in the database (`SELECT scoreTotal FROM tr_User`) to what the UI displayed, rather than trusting the appearance of success.
+- `docker logs <container>` remains the first reflex when facing silently incorrect backend behavior — the full SQL error was there, with the faulty query quoted verbatim.
 
 ---
 
-## 5. `getConvos` : mauvais expéditeur sélectionné
+## 5. `getConvos`: wrong sender selected
 
-### Symptôme
-Signalé dans `BACKEND_TODO.md` : impossible pour le front de savoir qui a écrit quoi dans l'historique d'une conversation.
+### Symptom
+Flagged in `BACKEND_TODO.md`: impossible for the frontend to know who wrote what in a conversation's history.
 
 ### Cause
 ```sql
@@ -172,7 +172,7 @@ select tr_Message.idMessage, content, sendDate, tr_Chat.idUser, tr_Chat.idUser_1
 from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage
 where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?
 ```
-Cette requête sélectionne `tr_Chat.idUser`/`idUser_1` — les deux participants **constants** de toute la conversation — mais jamais `tr_Message.idUser`, l'expéditeur **réel** de ce message précis.
+This query selects `tr_Chat.idUser`/`idUser_1` — the two **constant** participants of the entire conversation — but never `tr_Message.idUser`, the **actual** sender of this specific message.
 
 ### Fix
 ```sql
@@ -180,26 +180,26 @@ select tr_Message.idMessage, content, sendDate, tr_Message.idUser as senderId, t
 from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage
 where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?
 ```
-Réponse : `{ success: true, convos: [...] }` avec un `senderId` par message en plus des deux participants du fil (utile pour calculer `otherUserId` côté front = la clé de regroupement par conversation).
+Response: `{ success: true, convos: [...] }` with a `senderId` per message in addition to the thread's two participants (useful for computing `otherUserId` on the frontend = the key used to group by conversation).
 
-**Reste à faire, côté front cette fois** : rien n'appelle encore cette route (`fetchGetConvos` n'existe pas dans `api.ts`, `ChatContext.setHistory` n'est jamais invoqué) — la donnée est maintenant correcte, il ne manque que le câblage.
+**Still to do, on the frontend side this time**: nothing calls this route yet (`fetchGetConvos` doesn't exist in `api.ts`, `ChatContext.setHistory` is never invoked) — the data is now correct, only the wiring is missing.
 
-### À retenir
-- Dans une table de jonction (`tr_Chat`) qui relie deux entités fixes, ne pas confondre les colonnes qui identifient **la relation** (les deux participants, constants) avec celles qui identifient **un évènement précis** de cette relation (l'expéditeur d'un message donné, variable).
+### Takeaway
+- In a junction table (`tr_Chat`) that links two fixed entities, don't confuse the columns that identify **the relationship** (the two participants, constant) with those that identify **a specific event** of that relationship (the sender of a given message, variable).
 
 ---
 
-## 6. Message de chat trop long : ne renvoyait rien du tout
+## 6. Chat message too long: returned nothing at all
 
-### Symptôme
-Un message de plus de 100 caractères envoyé via le WebSocket disparaissait sans aucune réponse, ni succès ni erreur.
+### Symptom
+A message longer than 100 characters sent via the WebSocket vanished with no response at all, neither success nor error.
 
 ### Cause
 ```js
 if (args.message.length > 100)
 	return;
 ```
-Sortie silencieuse, sans jamais informer le client.
+Silent exit, without ever informing the client.
 
 ### Fix
 ```js
@@ -208,7 +208,7 @@ if (args.message.length > 100) {
 	return;
 }
 ```
-(Le front limite déjà la saisie à 100 caractères côté `ChatInput.tsx` — `maxLength` — donc ce cas ne devrait plus être atteignable depuis l'UI normale ; ce fix protège contre un client qui enverrait directement au WebSocket sans passer par le formulaire.)
+(The frontend already limits input to 100 characters on `ChatInput.tsx` — `maxLength` — so this case shouldn't be reachable from the normal UI anymore; this fix guards against a client that would send directly to the WebSocket without going through the form.)
 
-### À retenir
-- Toujours répondre sur un `return` de validation, même silencieux en apparence — sinon rien ne permet de distinguer "ça a marché" de "ça a été rejeté" côté client.
+### Takeaway
+- Always respond on a validation `return`, even one that seems silent — otherwise there's no way for the client to distinguish "it worked" from "it was rejected".
