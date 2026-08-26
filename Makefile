@@ -7,7 +7,7 @@ all: start
 
 start:
 	mkdir -p $(MANDA_DIR_MARIA)
-	docker compose -f ./docker/docker-compose.yml up -d
+	MARIADB_DATA_DIR=$(MANDA_DIR_MARIA) docker compose -f ./docker/docker-compose.yml up -d
 
 fclean: clean
 	docker system prune -af
