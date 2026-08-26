@@ -1,7 +1,7 @@
 const express = require('express');
 const mariadb = require('mariadb');
 const websocket = require('ws');
-const {getActions, manageDisconnect, startRandomRenderLoop} = require('./ws/actions');
+const {getActions, manageDisconnect, startRandomRenderLoop, notifyUser} = require('./ws/actions');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
@@ -143,6 +143,10 @@ app.post('/api/addFriend', async (req, res) => {
 			const sqlQuery = "INSERT INTO tr_Friend (idUser, idUser_1) VALUES (?, ?)";
 			await conn.query(sqlQuery, [jwtDecoded.idUser, idUser]);			
 			res.status(200).json({ success: true, message: "Friend added successfully" });
+			notifyUser(idUser, {
+                action: 'friendAdded',
+                friendId: jwtDecoded.idUser
+            });
 		} catch (err) {
 			console.error("Database error:", err);
 			if (err.code === 'ER_DUP_ENTRY') {
@@ -199,7 +203,7 @@ app.post('/api/getConvos', async (req, res) => {
 		let conn;
 		try {
 			conn = await pool.getConnection();
-			const sqlQuery = "select tr_Message.idMessage, content, sendDate, tr_Chat.idUser, tr_Chat.idUser_1 from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?";
+			const sqlQuery = "select tr_Message.idMessage, content, sendDate, tr_Message.idUser as senderId, tr_Chat.idUser, tr_Chat.idUser_1 from tr_Message join tr_Chat on tr_Message.idMessage = tr_Chat.idMessage where tr_Chat.idUser = ? or tr_Chat.idUser_1 = ?";
 			const rows = await conn.query(sqlQuery, [jwtDecoded.idUser, jwtDecoded.idUser]);
 			res.status(200).json({success: true, convos: rows});
 		} catch (err) {
@@ -276,12 +280,17 @@ app.post('/api/createUser', async (req, res) => {
 	if (!nameA) {
 		return res.status(400).json({ success: false, message: "name is required" });
 	}
+	if (nameA.length > 16) {
+		return res.status(400).json({ success: false, message: "name is too long" });
+	}
 	if (!password) {
 		return res.status(400).json({ success: false, message: "password is required" });
 	}
 	if (!mail) {
 		return res.status(400).json({ success: false, message: "mail is required" });
 	}
+	if (mail.length > 32) {
+		return res.status(400).json({ success: false, message: "mail is too long" });
 	let conn;
 	try {
 		conn = await pool.getConnection();
@@ -302,7 +311,7 @@ app.post('/api/createUser', async (req, res) => {
 		if (err.code === 'ER_DUP_ENTRY') {
 			return res.status(409).json({
 				success: false,
-				message: 'cet email est déjà utilisé'
+				message: 'this email is already in use'
 			});
 		}
 		res.status(500).json({
@@ -379,6 +388,10 @@ app.put('/api/updateUserName', async (req, res) => {
 
 	if (!name) {
 		return res.status(400).json({ success: false, message: "name is required" });
+	}
+	if (name.length > 16)
+	{
+		return res.status(400).json({ success: false, message: "name too long" });
 	}
 	try{
 		const jwtDecoded = jwt.verify(token, SECRET);
@@ -548,6 +561,10 @@ app.delete('/api/removeFriend', async (req, res) => {
 				return res.status(404).json({ success: false, message: "Friendship not found" });
 			}
 			res.status(200).json({ success: true, message: "Friend removed successfully" });
+			notifyUser(idUser, {
+                action: 'friendRemoved',
+                friendId: jwtDecoded.idUser
+            });
 		} catch (err) {
 			console.error("Database error:", err);
 			res.status(500).json({ 
@@ -571,36 +588,36 @@ app.delete('/api/removeFriend', async (req, res) => {
  *---------------------------------
  */
 
-ws.on('close', () => {
-	manageDisconnect(ws);
-})
+ws.on('connection', (socket) => {
+	socket.send(JSON.stringify({message:"Connected successfully"}));
 
-ws.on('connection', (ws) => {
-	ws.send(JSON.stringify({message:"Connected successfully"}));
-});
-ws.on('message', (message) => {
-	try
-	{
-		const args = JSON.parse(message);
-		if (args.action && getActions[args.action])
+	socket.on('message', (message) => {
+		try
 		{
-			getActions[args.action](ws, args);
-		}
-		else
+			const args = JSON.parse(message);
+			if (args.action && getActions[args.action])
+			{
+				getActions[args.action](socket, args);
+			}
+			else
+			{
+				socket.send(JSON.stringify({ error: "action doesn't exist" }));
+			}
+		}catch(err)
 		{
-			ws.send(JSON.stringify({ error: "action doesn't exist" }));
+			socket.send(JSON.stringify({ error: "Format de message invalide" }));
 		}
-	}catch(err)
-	{
-		ws.send(JSON.stringify({ error: "Format de message invalide" }));
-	}
-})
-const args = 
-	//start the server
-	server.listen(PORT, () => {
-		console.log("Server is launched");
-		startRandomRenderLoop();
 	});
+
+	socket.on('close', () => {
+		manageDisconnect(socket);
+	});
+});
+
+server.listen(PORT, () => {
+	console.log("Server is launched");
+	startRandomRenderLoop();
+});
 
 
 

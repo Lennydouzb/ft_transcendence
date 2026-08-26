@@ -1,4 +1,13 @@
-const API = "http://localhost:8080/api";
+const API = "/api";
+
+export class ApiError extends Error {
+	status: number;
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+	}
+}
 
 async function callBackend(endpoint: string, options: RequestInit = {})
 {
@@ -8,22 +17,15 @@ async function callBackend(endpoint: string, options: RequestInit = {})
 	const headers: Record<string, string> = {...options.headers as Record<string, string>,};
 	if (!isFormData)
 		headers["Content-Type"] = "application/json";
-	try
-	{
-		const response = await fetch (URL,{
-			...options,
-			headers
-		});
-		const data = await response.json().catch(() => null);
-		if (!response.ok){
-			throw new Error(data?.error || data?.message || "This endpoint couldn't be called");
-		}
-		return data;
-	} catch (error)
-	{
-		console.error("Error:", error);
-		throw error;
+	const response = await fetch (URL,{
+		...options,
+		headers
+	});
+	const data = await response.json().catch(() => null);
+	if (!response.ok){
+		throw new ApiError(data?.error || data?.message || "This endpoint couldn't be called", response.status);
 	}
+	return data;
 }
 
 export async function fetchUsers()
@@ -31,9 +33,26 @@ export async function fetchUsers()
 	return callBackend("/users")
 }
 
+export async function fetchGetUser(idUser: number)
+{
+	return callBackend('/getUser', {
+		method: 'POST',
+		body: JSON.stringify({ idUser }),
+	});
+}
+
+export async function fetchGetConvos(token: string)
+{
+	return callBackend('/getConvos', {
+		method: 'POST',
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
 export async function fetchFriends(token: string)
 {
 	return callBackend('/friends', {
+		method: 'POST',
 		headers: {'Authorization': `Bearer ${token}`}
 	});
 }
@@ -42,6 +61,15 @@ export async function fetchAddFriend(idUser: number, token: string)
 {
 	return callBackend('/addFriend', {
 		method: 'POST',
+		body: JSON.stringify({ idUser }),
+		headers: {'Authorization': `Bearer ${token}`}
+	});
+}
+
+export async function fetchRemoveFriend(idUser: number, token: string)
+{
+	return callBackend('/removeFriend', {
+		method: 'DELETE',
 		body: JSON.stringify({ idUser }),
 		headers: {'Authorization': `Bearer ${token}`}
 	});

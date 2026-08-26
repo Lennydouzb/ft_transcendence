@@ -1,3 +1,4 @@
+
 # ==========================================
 # 1. Dépendances Node.js (Backend & Frontend)
 # ==========================================
@@ -22,7 +23,6 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
-
 # ==========================================
 # 4. Données Docker & Base de données
 # ==========================================

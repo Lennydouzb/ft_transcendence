@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { fetchLogin, fetchCreateUser } from '../api/api';
+import { fetchLogin, fetchCreateUser, fetchUpdateUserName, fetchGetUser } from '../api/api';
 
 type User = {
 	idUser: number;
@@ -15,6 +15,7 @@ type AuthContextType = {
 	loading: boolean;
 	login: (mail: string, password: string) => Promise<void>;
 	register: (name: string, mail: string, password: string) => Promise<void>;
+	updateName: (name: string) => Promise<void>;
 	logout: () => void;
 };
 
@@ -37,17 +38,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const stored = localStorage.getItem('token');
-		if (stored) {
-			const decoded = decodeToken(stored);
-			if (decoded && decoded.exp * 1000 > Date.now()) {
-				setToken(stored);
-				setUser(decoded.user);
-			} else {
-				localStorage.removeItem('token');
+		async function initAuth() {
+			const stored = localStorage.getItem('token');
+			if (stored) {
+				const decoded = decodeToken(stored);
+				if (decoded && decoded.exp * 1000 > Date.now()) {
+					try {
+						// Checks that the user still exists in the database (e.g. after a make re)
+						const data = await fetchGetUser(decoded.user.idUser);
+						if (!Array.isArray(data) || data.length === 0) {
+							throw new Error('User not found in DB');
+						}
+						setToken(stored);
+						setUser({ idUser: decoded.user.idUser, name: data[0].name });
+					} catch {
+						localStorage.removeItem('token');
+						setToken(null);
+						setUser(null);
+					}
+				} else {
+					localStorage.removeItem('token');
+					setToken(null);
+					setUser(null);
+				}
 			}
+			setLoading(false);
 		}
-		setLoading(false);
+		initAuth();
 	}, []);
 
 	function applyToken(newToken: string) {
@@ -67,6 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		applyToken(data.token);
 	}
 
+	async function updateName(name: string) {
+		if (!token)
+			return;
+		await fetchUpdateUserName(name, token);
+		setUser((prev) => (prev ? { ...prev, name } : prev));
+	}
+
 	function logout() {
 		localStorage.removeItem('token');
 		setToken(null);
@@ -74,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}
 
 	return (
-		<AuthContext.Provider value={{ user, token, isAuthenticated: !!token, loading, login, register, logout }}>
+		<AuthContext.Provider value={{ user, token, isAuthenticated: !!token, loading, login, register, updateName, logout }}>
 			{children}
 		</AuthContext.Provider>
 	);

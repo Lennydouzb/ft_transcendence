@@ -70,8 +70,10 @@ const manageMsg = async (ws, args) => {
         ws.send(JSON.stringify({error: "no message"}));
         return;
     }
-    if (args.message.length > 100)
+    if (args.message.length > 100) {
+        ws.send(JSON.stringify({error: "message too long"}));
         return;
+    }
     if (!args.idUser) {
         ws.send(JSON.stringify({error: "no idUser, can't know receiver"}));
         return;
@@ -131,10 +133,10 @@ const manageAuth = (ws, args) =>
 
 }
 
-const manageClick = async (wa, args) =>
+const manageClick = async (ws, args) =>
 {
 	if (!args.token)
-		return;	
+		return;
 	const fulltoken = args.token;
 	if (!fulltoken || !fulltoken.startsWith("Bearer "))
 		return;
@@ -148,32 +150,29 @@ const manageClick = async (wa, args) =>
 	{
 		try {
 			const jwtDecoded = jwt.verify(token, SECRET);
-			const user = sessionsUsers.get(ws);
-			if (gameActive == 1)
+			if (gameActive != 1)
 			{
-				let conn;
-				try {
-					conn = await pool.getConnection();
-					const sqlQuery = "update tr_User set scoreTotal = scoreTotal + 100 where idUser = ? returning scoreTotal";
-					const rows = await conn.query(sqlQuery, [jwtDecoded.idUser]);
-					for (const anUser of sessionsUsers.values() )
-					{
-						anUser.ws.send(JSON.stringify({
-							action: "unrender"
-						}))
-					}
-					ws.send(JSON.stringify({success: true, scoreTotal: rows[0].scoreTotal}));
-
-				} catch (err) {
-					console.error("Database error:", err);
-					ws.send(JSON.stringify({success: false, message: "The database didn't want you to win"}));
-				} finally {
-					if (conn) conn.release();
-				}
-
+				ws.send(JSON.stringify({action: "clickResult", success: false, message: "Missed"}));
+				return;
 			}
-			else
-				ws.send(JSON.stringify({success: false, message: "Missed"}));
+			// consumes the button before any `await`: the first click to arrive here wins
+			gameActive = 0;
+			for (const anUser of sessionsUsers.values())
+			{
+				anUser.ws.send(JSON.stringify({ action: "gone" }));
+			}
+			let conn;
+			try {
+				conn = await pool.getConnection();
+				await conn.query("update tr_User set scoreTotal = scoreTotal + 1 where idUser = ?", [jwtDecoded.idUser]);
+				const rows = await conn.query("select scoreTotal from tr_User where idUser = ?", [jwtDecoded.idUser]);
+				ws.send(JSON.stringify({action: "clickResult", success: true, scoreTotal: rows[0].scoreTotal}));
+			} catch (err) {
+				console.error("Database error:", err);
+				ws.send(JSON.stringify({action: "clickResult", success: false, message: "The database didn't want you to win"}));
+			} finally {
+				if (conn) conn.release();
+			}
 		} catch (err) {
 			ws.close(4001, "Invalid token");
 		}
@@ -186,17 +185,31 @@ const startRandomRenderLoop = () => {
 	const randomDelay = Math.floor(Math.random() * (max - min + 1)) + min;
 
 	setTimeout(() => {
+		gameActive = 0;
 		for (const anUser of sessionsUsers.values()) {
 			anUser.ws.send(JSON.stringify({
-				action: "unrender"
-			}));
-
-			anUser.ws.send(JSON.stringify({
-				action: "render"
+				action: "gone"
 			}));
 		}
+
+		gameActive = 1;
+		for (const anUser of sessionsUsers.values()) {
+			anUser.ws.send(JSON.stringify({
+				action: "spawn"
+			}));
+		}
+
 		startRandomRenderLoop();
 	}, randomDelay);
+};
+
+const notifyUser = (idUser, payload) => 
+{
+	if (sessionsUsersId.has(idUser))
+	{
+		const ws = sessionsUsersId.get(idUser);
+        ws.send(JSON.stringify(payload));
+	}
 };
 
 const getActions =
@@ -212,5 +225,6 @@ module.exports =
 	{
 		getActions,
 		manageDisconnect,
-		startRandomRenderLoop
+		startRandomRenderLoop,
+		notifyUser
 	};

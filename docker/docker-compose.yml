@@ -2,10 +2,6 @@ volumes:
   mariadb:
     name: mariadb
     driver: local
-    driver_opts:
-      device: ${MARIADB_DATA_DIR}
-      o: bind
-      type: none
 services:
 
   nginx:
@@ -49,14 +45,21 @@ services:
     restart: on-failure
     expose:
       - "3306"
-    env_file: .env 
+    env_file: .env
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   backend:
     container_name: backend
     build: 
       context: ..
       dockerfile: ./docker/backend/Dockerfile
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
     ports:
       - "8080:8080"
     networks:

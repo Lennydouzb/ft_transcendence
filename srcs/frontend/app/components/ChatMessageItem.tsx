@@ -16,7 +16,7 @@ export default function ChatMessageItem({ message }: ChatMessageItemProps) {
 				<span className="px-1 text-xs text-gray-500">{message.senderName}</span>
 			)}
 			<span
-				className={`max-w-xs rounded-2xl px-3 py-2 text-sm ${
+				className={`max-w-xs break-words rounded-2xl px-3 py-2 text-sm ${
 					message.fromMe ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'
 				}`}
 			>

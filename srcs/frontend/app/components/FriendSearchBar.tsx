@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, SubmitEvent } from 'react';
-import { fetchUsers, fetchAddFriend } from '../api/api';
+import { fetchUsers, fetchAddFriend, fetchFriends } from '../api/api';
 import { useAuth } from '../context/AuthContext';
 import { Friend } from '../types';
 
@@ -10,20 +10,33 @@ type FriendSearchBarProps = {
 };
 
 export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps) {
-	const { token } = useAuth();
+	const { token, user } = useAuth();
 	const [query, setQuery] = useState('');
 	const [results, setResults] = useState<Friend[]>([]);
 	const [searching, setSearching] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
 	async function handleSearch(e: SubmitEvent<HTMLFormElement>) {
 		e.preventDefault();
 		if (!query.trim())
 			return;
 		setSearching(true);
+		setError(null);
 		try {
-			const users: Friend[] = await fetchUsers();
+			const [users, friendsData]: [Friend[], { friends?: Friend[] }] = await Promise.all([
+				fetchUsers(),
+				token ? fetchFriends(token) : Promise.resolve({ friends: [] }),
+			]);
+			const friendIds = new Set((friendsData.friends ?? []).map((f) => f.idUser));
 			const lowerQuery = query.toLowerCase();
-			setResults(users.filter((user) => user.name.toLowerCase().includes(lowerQuery)));
+			setResults(
+				users.filter(
+					(u) =>
+						u.idUser !== user?.idUser &&
+						!friendIds.has(u.idUser) &&
+						u.name.toLowerCase().includes(lowerQuery)
+				)
+			);
 		} finally {
 			setSearching(false);
 		}
@@ -32,9 +45,14 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 	async function handleAdd(idUser: number) {
 		if (!token)
 			return;
-		await fetchAddFriend(idUser, token);
-		setResults((prev) => prev.filter((user) => user.idUser !== idUser));
-		onFriendAdded();
+		setError(null);
+		try {
+			await fetchAddFriend(idUser, token);
+			setResults((prev) => prev.filter((u) => u.idUser !== idUser));
+			onFriendAdded();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Unable to add this friend');
+		}
 	}
 
 	return (
@@ -44,31 +62,32 @@ export default function FriendSearchBar({ onFriendAdded }: FriendSearchBarProps)
 					type="text"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder="Chercher un ami..."
-					className="flex-1 rounded border px-3 py-2 text-sm"
+					placeholder="Search for a friend..."
+					className="min-w-0 flex-1 rounded border px-3 py-2 text-sm"
 				/>
 				<button
 					type="submit"
 					disabled={searching}
 					className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
 				>
-					{searching ? '...' : 'Chercher'}
+					{searching ? '...' : 'Search'}
 				</button>
 			</form>
+			{error && <p className="text-xs text-red-600">{error}</p>}
 			{results.length > 0 && (
 				<ul className="flex flex-col gap-1">
-					{results.map((user) => (
+					{results.map((u) => (
 						<li
-							key={user.idUser}
+							key={u.idUser}
 							className="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-gray-100"
 						>
-							<span>{user.name}</span>
+							<span>{u.name}</span>
 							<button
 								type="button"
-								onClick={() => handleAdd(user.idUser)}
+								onClick={() => handleAdd(u.idUser)}
 								className="rounded bg-green-600 px-2 py-1 text-xs text-white"
 							>
-								Ajouter
+								Add
 							</button>
 						</li>
 					))}

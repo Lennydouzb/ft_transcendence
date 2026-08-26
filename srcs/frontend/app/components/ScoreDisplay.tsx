@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useGame } from '../context/GameContext';
 
 export default function ScoreDisplay() {
@@ -9,8 +10,11 @@ export default function ScoreDisplay() {
 		return null;
 
 	return (
-		<div className="rounded bg-gray-100 px-3 py-1 text-sm font-medium">
+		<Link
+			href="/score"
+			className="rounded bg-gray-100 px-3 py-1 text-sm font-medium text-gray-900 hover:bg-gray-200"
+		>
 			Score : {score}
-		</div>
+		</Link>
 	);
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { Friend } from '../types';
-import { fetchFriends } from '../api/api';
+import { fetchFriends, fetchRemoveFriend, ApiError } from '../api/api';
 import { useAuth } from '../context/AuthContext';
+import { useWebSocket } from '../context/WebSocketContext';
 import FriendListItem from './FriendListItem';
 
 type FriendsListProps = {
@@ -14,36 +15,97 @@ type FriendsListProps = {
 
 export default function FriendsList({ refreshKey, selectedId, onSelect }: FriendsListProps) {
 	const { token } = useAuth();
+	const { subscribe } = useWebSocket();
 	const [friends, setFriends] = useState<Friend[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [removeError, setRemoveError] = useState<string | null>(null);
+	const [removingId, setRemovingId] = useState<number | null>(null);
+
+
+	useEffect(() => {
+		const unsubAdded = subscribe('friendAdded', () => {
+			if (!token)
+				return;
+			fetchFriends(token)
+			.then((data) => {
+				const raw: Friend[] = data.friends ?? [];
+				const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
+				setFriends(deduped);
+			})
+			.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
+			.finally(() => setLoading(false)); 
+		});
+
+		const unsubRemoved = subscribe('friendRemoved', (payload) => {
+			if (!token)
+				return;
+			fetchFriends(token)
+			.then((data) => {
+				const raw: Friend[] = data.friends ?? [];
+				const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
+				setFriends(deduped);
+			})
+			.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
+			.finally(() => setLoading(false));
+		});
+	}, [token, refreshKey, subscribe]);
 
 	useEffect(() => {
 		if (!token)
 			return;
 		fetchFriends(token)
-			.then((data) => setFriends(data.friends ?? []))
-			.catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
-			.finally(() => setLoading(false));
+		.then((data) => {
+			const raw: Friend[] = data.friends ?? [];
+			const deduped = Array.from(new Map(raw.map((f) => [f.idUser, f])).values());
+			setFriends(deduped);
+		})
+		.catch((err) => setError(err instanceof Error ? err.message : 'Loading error'))
+		.finally(() => setLoading(false));
 	}, [token, refreshKey]);
 
+	async function handleRemove(idUser: number) {
+		if (!token || removingId === idUser)
+			return;
+		setRemoveError(null);
+		setRemovingId(idUser);
+		try {
+			await fetchRemoveFriend(idUser, token);
+			setFriends((prev) => prev.filter((f) => f.idUser !== idUser));
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 404) {
+				// already removed server-side (e.g. the other person did it on their side): we just align the display
+				setFriends((prev) => prev.filter((f) => f.idUser !== idUser));
+			} else {
+				setRemoveError(err instanceof Error ? err.message : 'Error while removing');
+			}
+		} finally {
+			setRemovingId(null);
+		}
+	}
+
 	if (loading)
-		return <p className="p-3 text-sm text-gray-500">Chargement...</p>;
+		return <p className="p-3 text-sm text-gray-500">Loading...</p>;
 	if (error)
 		return <p className="p-3 text-sm text-red-600">{error}</p>;
-	if (friends.length === 0)
-		return <p className="p-3 text-sm text-gray-500">Pas encore d&apos;amis</p>;
 
 	return (
 		<div className="flex flex-col gap-1 overflow-y-auto p-2">
-			{friends.map((friend) => (
-				<FriendListItem
-					key={friend.idUser}
-					friend={friend}
-					selected={friend.idUser === selectedId}
-					onSelect={onSelect}
-				/>
-			))}
+		{removeError && <p className="px-1 text-xs text-red-600">{removeError}</p>}
+		{friends.length === 0 ? (
+			<p className="p-3 text-sm text-gray-500">No friends yet</p>
+		) : (
+		friends.map((friend) => (
+			<FriendListItem
+			key={friend.idUser}
+			friend={friend}
+			selected={friend.idUser === selectedId}
+			onSelect={onSelect}
+			onRemove={handleRemove}
+			removing={removingId === friend.idUser}
+			/>
+		))
+		)}
 		</div>
 	);
 }

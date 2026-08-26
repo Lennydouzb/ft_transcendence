@@ -1,16 +1,28 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef, ReactNode } from 'react';
 import { useWebSocket } from './WebSocketContext';
 import { useAuth } from './AuthContext';
+import { fetchGetUser } from '../api/api';
 
-type Position = { x: number; y: number };
+type Position = {
+	x: number;
+	y: number;
+};
+
+type Feedback = {
+	message: string;
+	success: boolean;
+	position: Position;
+	id: number;
+};
 
 type GameContextType = {
 	visible: boolean;
 	position: Position | null;
 	score: number | null;
 	click: () => void;
+	feedback: Feedback | null;
 };
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -26,10 +38,29 @@ function randomPosition(): Position {
 
 export function GameProvider({ children }: { children: ReactNode }) {
 	const { sendAction, subscribe } = useWebSocket();
-	const { token } = useAuth();
+	const { token, user } = useAuth();
 	const [visible, setVisible] = useState(false);
 	const [position, setPosition] = useState<Position | null>(null);
 	const [score, setScore] = useState<number | null>(null);
+	const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+	// Keep track of the current position for feedback without re-triggering the effect
+	const positionRef = useRef<Position | null>(null);
+	useEffect(() => {
+		positionRef.current = position;
+	}, [position]);
+
+	useEffect(() => {
+		if (!user)
+			return;
+		fetchGetUser(user.idUser)
+			.then((data) => {
+				const found = data?.[0];
+				if (found && typeof found.scoreTotal === 'number')
+					setScore(found.scoreTotal);
+			})
+			.catch(() => { });
+	}, [user]);
 
 	useEffect(() => {
 		const unsubSpawn = subscribe('spawn', () => {
@@ -37,10 +68,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
 			setVisible(true);
 		});
 		const unsubGone = subscribe('gone', () => {
-			setVisible(false);
+			setVisible((prevVisible) => {
+				if (prevVisible && positionRef.current) {
+					setFeedback({
+						message: 'Game lost :(',
+						success: false,
+						position: positionRef.current,
+						id: Date.now()
+					});
+					setTimeout(() => setFeedback(null), 1500);
+				}
+				return false;
+			});
 		});
 		const unsubResult = subscribe('clickResult', (payload) => {
 			setVisible(false);
+			if (positionRef.current) {
+				setFeedback({
+					message: payload.success ? 'Game won !' : 'Game lost :(',
+					success: !!payload.success,
+					position: positionRef.current,
+					id: Date.now()
+				});
+				// Clear the feedback after 1.5s
+				setTimeout(() => setFeedback(null), 1500);
+			}
+
 			if (payload.success && typeof payload.scoreTotal === 'number')
 				setScore(payload.scoreTotal);
 		});
@@ -59,8 +112,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
 	}, [sendAction, token]);
 
 	const value = useMemo(
-		() => ({ visible, position, score, click }),
-		[visible, position, score, click]
+		() => ({ visible, position, score, click, feedback }),
+		[visible, position, score, click, feedback]
 	);
 
 	return (
